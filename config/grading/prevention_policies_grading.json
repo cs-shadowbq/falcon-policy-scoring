@@ -1,0 +1,152 @@
+{
+  "prevention_policies": [
+    {
+      "platform_name": "Linux",
+      "prevention_settings": [
+        {
+          "name": "Cloud Machine Learning",
+          "settings": [
+            {
+              "id": "CloudAntiMalware",
+              "value": {
+                "detection": "AGGRESSIVE",
+                "prevention": "MODERATE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sensor Machine Learning",
+          "settings": [
+            {
+              "id": "OnSensorMLSlider",
+              "value": {
+                "detection": "AGGRESSIVE",
+                "prevention": "MODERATE"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "platform_name": "Windows",
+      "enabled": true,
+      "prevention_settings": [
+        {
+          "name": "User-Mode Capabilities",
+          "settings": [
+            {
+              "id": "SensorTamperingProtection",
+              "value": {
+                "configured": true,
+                "enabled": true
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cloud Machine Learning",
+          "settings": [
+            {
+              "id": "CloudAntiMalware",
+              "value": {
+                "detection": "AGGRESSIVE",
+                "prevention": "MODERATE"
+              }
+            },
+            {
+              "id": "AdwarePUP",
+              "value": {
+                "detection": "AGGRESSIVE",
+                "prevention": "MODERATE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sensor Machine Learning",
+          "settings": [
+            {
+              "id": "OnSensorMLSlider",
+              "value": {
+                "detection": "AGGRESSIVE",
+                "prevention": "MODERATE"
+              }
+            },
+            {
+              "id": "ML Large File Handling",
+              "value": {
+                "enabled": true
+              }
+            }
+          ]
+        },
+        {
+          "name": "On Write",
+          "settings": [
+            {
+              "id": "DetectOnWrite",
+              "value": {
+                "enabled": true
+              }
+            },
+            {
+              "id": "QuarantineOnWrite",
+              "value": {
+                "enabled": true
+              }
+            }
+          ]
+        },
+        {
+          "name": "Quarantine",
+          "settings": [
+            {
+              "id": "NextGenAV",
+              "value": {
+                "enabled": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "platform_name": "Mac",
+      "prevention_settings": [
+        {
+          "name": "Cloud Machine Learning",
+          "settings": [
+            {
+              "id": "CloudAntiMalware",
+              "value": {
+                "detection": "AGGRESSIVE",
+                "prevention": "MODERATE"
+              }
+            },
+            {
+              "id": "AdwarePUP",
+              "value": {
+                "detection": "AGGRESSIVE",
+                "prevention": "MODERATE"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sensor Machine Learning",
+          "settings": [
+            {
+              "id": "OnSensorMLSlider",
+              "value": {
+                "detection": "AGGRESSIVE",
+                "prevention": "MODERATE"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

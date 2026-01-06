@@ -1,0 +1,193 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: falcon-policy-audit-daemon
+  namespace: endpoint-readiness-audit
+  labels:
+    app: falcon-policy-audit
+    component: daemon
+    version: v0.1.0
+spec:
+  replicas: 1 # Single instance for daemon (stateful workload)
+  strategy:
+    type: Recreate # Ensure clean shutdown before starting new pod
+  selector:
+    matchLabels:
+      app: falcon-policy-audit
+      component: daemon
+  template:
+    metadata:
+      labels:
+        app: falcon-policy-audit
+        component: daemon
+        version: v0.1.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8088"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: falcon-policy-audit
+
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+
+      # Init container to setup permissions
+      initContainers:
+        - name: setup-permissions
+          image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              chown -R 1001:0 /app/data /app/output /app/logs
+              chmod -R g=u /app/data /app/output /app/logs
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: output
+              mountPath: /app/output
+            - name: logs
+              mountPath: /app/logs
+          securityContext:
+            runAsUser: 0
+
+      containers:
+        - name: daemon
+          image: falcon-policy-audit:latest # Replace with your actual image
+          imagePullPolicy: IfNotPresent
+
+          # Command and args
+          command: ["python3", "/app/bin/policy-audit"]
+          args:
+            - "daemon"
+            - "--config"
+            - "/app/config/config.yaml"
+            - "--output-dir"
+            - "/app/output"
+            - "--verbose"
+
+          # Environment variables from secret
+          env:
+            - name: FALCON_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: falcon-api-credentials
+                  key: FALCON_CLIENT_ID
+            - name: FALCON_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: falcon-api-credentials
+                  key: FALCON_CLIENT_SECRET
+            - name: FALCON_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: falcon-api-credentials
+                  key: FALCON_BASE_URL
+            - name: PYTHONUNBUFFERED
+              value: "1"
+
+          # Resource limits for 100k hosts
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+
+          # Volume mounts
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+            - name: output
+              mountPath: /app/output
+            - name: logs
+              mountPath: /app/logs
+
+          # Liveness probe - is the container alive?
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          # Readiness probe - is the container ready to serve?
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8088
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Startup probe - gives more time during startup
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+
+          # Security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false # Need to write to /app/data and /app/output
+
+          # Ports
+          ports:
+            - name: health
+              containerPort: 8088
+              protocol: TCP
+
+      # Volumes
+      volumes:
+        - name: config
+          configMap:
+            name: falcon-policy-audit-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: falcon-policy-audit-data
+        - name: output
+          persistentVolumeClaim:
+            claimName: falcon-policy-audit-output
+        - name: logs
+          persistentVolumeClaim:
+            claimName: falcon-policy-audit-logs
+
+      # Tolerations (optional - adjust for your cluster)
+      # tolerations:
+      #   - key: "node-role.kubernetes.io/worker"
+      #     operator: "Exists"
+      #     effect: "NoSchedule"
+
+      # Node affinity (optional - schedule on specific nodes)
+      # affinity:
+      #   nodeAffinity:
+      #     preferredDuringSchedulingIgnoredDuringExecution:
+      #       - weight: 100
+      #         preference:
+      #           matchExpressions:
+      #             - key: workload-type
+      #               operator: In
+      #               values:
+      #                 - security

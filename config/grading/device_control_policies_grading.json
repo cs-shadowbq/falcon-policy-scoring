@@ -1,0 +1,36 @@
+{
+  "platform_requirements": [
+    {
+      "platform_name": "all",
+      "policy_requirements": {
+        "enabled": true,
+        "settings": {
+          "enforcement_mode": "MONITOR_ENFORCE",
+          "classes_requirements": {
+            "ANY": {
+              "allowed_actions": ["FULL_ACCESS", "BLOCK_ALL"]
+            },
+            "AUDIO_VIDEO": {
+              "required_action": "BLOCK_ALL"
+            },
+            "IMAGING": {
+              "required_action": "BLOCK_ALL"
+            },
+            "MASS_STORAGE": {
+              "required_action": "BLOCK_ALL"
+            },
+            "MOBILE": {
+              "required_action": "BLOCK_ALL"
+            },
+            "PRINTER": {
+              "required_action": "BLOCK_ALL"
+            },
+            "WIRELESS": {
+              "required_action": "BLOCK_ALL"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""
+Transform policy-audit created host.json or hosts.json data into readiness_map.json format
+
+Note: This is a simple script to convert the output from the Policy Audit CrowdStrike Falcon
+module into a readiness map format. It reads a JSON file containing host data, transforms
+each host record into the required readiness format, and writes the results to an output
+JSON file. This is script is meant to be edited as needed to fit specific data structures
+or requirements, being fully self-contained and is a starting point for further customization.
+
+"""
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def transform_host_to_readiness(host):
+    """Transform a single host record to readiness format"""
+    host_record = host.get('host_record', {})
+    policy_status = host.get('policy_status', {})
+
+    # Transform reduced_functionality_mode to agent_status
+    reduced_func_mode = host_record.get('reduced_functionality_mode', '')
+    if reduced_func_mode == 'no':
+        agent_status = 'PASSED'
+    elif reduced_func_mode == 'yes':
+        agent_status = 'FAILED'
+    else:
+        agent_status = reduced_func_mode
+
+    return {
+        "hostname": host_record.get('hostname', ''),
+        "domain": host_record.get('machine_domain', ''),
+        "bios_uuid": "",  # Not available in source data
+        "device_sn": host_record.get('serial_number', ''),
+        "crowdstrike_agent_guid": host.get('device_id', ''),
+        "ipv4": host_record.get('connection_ip', ''),
+        "mac_address": host_record.get('connection_mac_address', ''),
+        "vendor": host_record.get('platform_name', ''),
+        "product": host_record.get('os_version', ''),
+        "version": host_record.get('kernel_version', ''),
+        "edition": host_record.get('os_product_name', ''),
+        "marketing_version": "",  # Not available in source data
+        "agent_vendor_name": "CrowdStrike",
+        "agent_product_name": "falcon",
+        "agent_version": host_record.get('agent_version', ''),
+        "agent_status": agent_status,
+        "firewall_status": policy_status.get('firewall', {}).get('status', ''),
+        "usb_device_control": policy_status.get('device_control', {}).get('status', ''),
+        "behavioral_ips_detections": policy_status.get('prevention', {}).get('status', ''),
+        "behavioral_ips_preventions": policy_status.get('prevention', {}).get('status', ''),
+        "antimalware_lastupdate": policy_status.get('content_update', {}).get('status', ''),
+        "antimalware_lastquickscan": "",  # Not available in source data
+        "antimalware_lastfullscan": "",  # Not available in source data
+        "antimalware_downloadscanning": policy_status.get('prevention', {}).get('status', ''),
+        "antimalware_on_access_scanning": policy_status.get('prevention', {}).get('status', ''),
+        "antimalware_signatureversion": policy_status.get('content_update', {}).get('status', ''),
+        "antimalware_smartscreen": policy_status.get('prevention', {}).get('status', '')
+    }
+
+
+def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description='Transform Policy Audit CrowdStrike Falcon host data into readiness map format',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s data/host.json
+  %(prog)s data/hosts.json --output-file output/readiness.json
+  %(prog)s data/hosts.json -o custom_readiness.json
+        """
+    )
+
+    parser.add_argument(
+        'input_file',
+        type=str,
+        help='Input JSON file containing host data (host.json or hosts.json)'
+    )
+
+    parser.add_argument(
+        '-o', '--output-file',
+        type=str,
+        default='./data/readiness_map.json',
+        help='Output file path (default: ./data/readiness_map.json)'
+    )
+
+    args = parser.parse_args()
+
+    input_file = Path(args.input_file)
+    output_file = Path(args.output_file)
+
+    # Validate input file exists
+    if not input_file.exists():
+        print(f"Error: Input file '{input_file}' not found")
+        sys.exit(1)
+
+    print(f"Reading {input_file}...")
+    with open(input_file, 'r') as f:
+        data = json.load(f)
+
+    # Extract and transform hosts
+    hosts = data.get('hosts', [])
+    print(f"Found {len(hosts)} host(s) to transform")
+
+    # Get metadata and modify it for readiness map
+    metadata = data.get('metadata', {}).copy()
+    metadata['report_type'] = 'readiness_map'
+    metadata['database_type'] = 'json'
+    if 'command' in metadata:
+        metadata['command_history'] = metadata.pop('command')
+
+    readiness_data = {
+        "metadata": metadata,
+        "readiness": [transform_host_to_readiness(host) for host in hosts]
+    }
+
+    # Write the output file
+    print(f"Writing {output_file}...")
+    with open(output_file, 'w') as f:
+        json.dump(readiness_data, f, indent=2)
+
+    print(f"✓ Successfully created {output_file}")
+    print(f"  Transformed {len(readiness_data['readiness'])} host record(s)")
+
+
+if __name__ == '__main__':
+    main()

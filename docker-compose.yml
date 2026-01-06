@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  policy-audit-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: falcon-policy-audit-daemon
+    
+    # Environment variables
+    environment:
+      - PYTHONUNBUFFERED=1
+    
+    # Volume mounts
+    volumes:
+      # Mount local config (customize as needed)
+      - ./config:/app/config:ro
+      # Mount output directory for JSON reports
+      - ./output:/app/output
+      # Mount data directory for database
+      - ./data:/app/data
+      # Mount logs directory
+      - ./logs:/app/logs
+    
+    # Port mapping for health check endpoint
+    ports:
+      - "8088:8088"
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Resource limits (adjust based on scale)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Network mode
+    network_mode: bridge
+
+# Optional: Named volumes for persistence
+volumes:
+  policy-audit-data:
+    driver: local
+  policy-audit-output:
+    driver: local

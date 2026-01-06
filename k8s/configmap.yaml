@@ -1,0 +1,87 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falcon-policy-audit-config
+  namespace: endpoint-readiness-audit
+  labels:
+    app: falcon-policy-audit
+    component: daemon
+data:
+  config.yaml: |
+    db:
+      type: sqlite
+
+    sqlite:
+      path: /app/data/db.sqlite
+
+    ttl:
+      default: 600
+      hosts: 300
+      host_records: 600
+      policies:
+        prevention_policy: 600
+        devicecontrol_policy: 600
+        device_control_policies: 600
+        device_control_policy_settings: 3600
+        firewall_policy: 600
+        firewall_policy_containers: 3600
+        firewall_rule_groups: 3600
+        firewall_rules: 3600
+        sensor_update_policy: 600
+        content_policy: 600
+        rtr_policy: 600
+        it_automation_policies: 600
+
+    # Falcon API Credentials - MUST be provided via Secret
+    falcon_credentials:
+      client_id: ${FALCON_CLIENT_ID}
+      client_secret: ${FALCON_CLIENT_SECRET}
+      base_url: ${FALCON_BASE_URL}
+      metadata:
+        include_client_hash: true
+        include_client_id: true
+        include_client_source: true
+
+    host_fetching:
+      batch_size: 100
+      progress_threshold: 500
+      include_zta: true
+
+    logging:
+      file: "/app/logs/app.log"
+      api: "/app/logs/api.log"
+      level: "INFO"
+
+    # Daemon Configuration
+    daemon:
+      schedules:
+        fetch_and_grade: "0 */2 * * *"  # Every 2 hours
+        cleanup: "0 2 * * *"              # Daily at 2 AM
+        metrics: "*/30 * * * *"            # Every 30 minutes
+      
+      check_interval: 60
+      
+      policy_types:
+        - prevention
+        - sensor-update
+        - content-update
+        - firewall
+        - device-control
+        - it-automation
+      
+      product_types: []
+      
+      rate_limit:
+        requests_per_second: 10.0
+        requests_per_minute: 500
+        burst_size: 20
+        retry_attempts: 5
+      
+      output:
+        compress: false
+        max_age_days: 30
+        max_files_per_type: 100
+      
+      health_check:
+        port: 8088

@@ -1,0 +1,53 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: falcon-policy-audit-data
+  namespace: endpoint-readiness-audit
+  labels:
+    app: falcon-policy-audit
+    component: daemon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # Optional: specify storage class
+  # storageClassName: standard
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: falcon-policy-audit-output
+  namespace: endpoint-readiness-audit
+  labels:
+    app: falcon-policy-audit
+    component: daemon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  # Optional: specify storage class
+  # storageClassName: standard
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: falcon-policy-audit-logs
+  namespace: endpoint-readiness-audit
+  labels:
+    app: falcon-policy-audit
+    component: daemon
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # Optional: specify storage class
+  # storageClassName: standard

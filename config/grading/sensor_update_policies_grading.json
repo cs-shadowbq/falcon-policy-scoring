@@ -1,0 +1,25 @@
+{
+  "policies": [
+    {
+      "platform_name": "Windows",
+      "enabled": true,
+      "settings": {
+        "build": "n-2"
+      }
+    },
+    {
+      "platform_name": "Linux",
+      "enabled": true,
+      "settings": {
+        "build": "n-2"
+      }
+    },
+    {
+      "platform_name": "Mac",
+      "enabled": true,
+      "settings": {
+        "build": "n-2"
+      }
+    }
+  ]
+}

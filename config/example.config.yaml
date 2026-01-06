@@ -1,0 +1,102 @@
+db:
+  #type: tiny_db
+  type: sqlite
+
+tiny_db:
+  path: ./data/db.json
+
+sqlite:
+  path: ./data/db.sqlite
+
+ttl:
+  default: 600 # Default Time-To-Live for records in seconds
+  hosts: 300 # Host records TTL in seconds
+  host_records: 600 # Host detailed records TTL in seconds
+  policies:
+    prevention_policy: 600
+    devicecontrol_policy: 600
+    device_control_policies: 600
+    device_control_policy_settings: 3600 # Settings change less frequently
+    firewall_policy: 600
+    firewall_policy_containers: 3600 # Containers change less frequently
+    firewall_rule_groups: 3600 # Rule groups change less frequently (global cache)
+    firewall_rules: 3600 # Rules change less frequently
+    sensor_update_policy: 600
+    content_policy: 600
+    rtr_policy: 600
+    it_automation_policies: 600 # IT automation policies TTL in seconds
+
+# Falcon API Credentials (replace with your values)
+falcon_credentials:
+  ## It is not recommended to store credentials in the config file for security reasons.
+  ## Instead, use environment variables or a secure vault.
+  # client_id: YOUR_CLIENT_ID_HERE
+  # client_secret: YOUR_CLIENT_SECRET_HERE
+  # base_url: US2
+
+  # Environment variable prefix for loading credentials from ENV
+  # If set to "FALCON_", will look for: FALCON_CLIENT_ID, FALCON_CLIENT_SECRET, FALCON_BASE_URL
+  # If empty or omitted, will look for: CLIENT_ID, CLIENT_SECRET, BASE_URL
+  # ENV variables take precedence over config file values
+  prefix: "" # Default: no prefix (CLIENT_ID, CLIENT_SECRET, BASE_URL)
+
+  # Optional metadata settings for JSON output troubleshooting
+  metadata:
+    include_client_source: false # If true, includes SHA256 hash of "username:hostname" as client_source
+    include_client_hash: false # If true, includes SHA256 hash of "client_id:client_secret" as client_hash
+    include_client_id: false # If true, includes client_id directly in output (security consideration!)
+
+# Host Fetching Configuration
+host_fetching:
+  batch_size: 100 # Number of hosts to fetch per API call (max 100)
+  progress_threshold: 500 # Show progress bar when fetching more than this many hosts
+  include_zta: true # Include Zero Trust Assessment data
+
+# Logging Configuration
+logging:
+  file: "logs/app.log"
+  api: "logs/api.log"
+  level: "INFO"
+
+# Daemon Configuration (does not apply to one-off runs)
+daemon:
+  # Task scheduling (cron format: "minute hour day month dayofweek")
+  schedules:
+    fetch_and_grade: "0 */2 * * *" # Every 2 hours
+    cleanup: "0 2 * * *" # Daily at 2 AM
+    metrics: "*/30 * * * *" # Every 30 minutes
+
+  # Scheduler check interval (seconds between task checks)
+  check_interval: 60
+
+  # Policy types to fetch and grade
+  policy_types:
+    - prevention
+    - sensor-update
+    - content-update
+    - firewall
+    - device-control
+    - it-automation
+
+  # Product types to include when fetching hosts
+  # Empty list or omit to use default (Workstation, Domain Controller, Server)
+  # Use ['all'] to include all product types
+  product_types: []
+
+  # Rate limiting configuration
+  rate_limit:
+    requests_per_second: 10.0 # Max requests per second
+    requests_per_minute: 500 # Max requests per minute
+    burst_size: 20 # Allow short bursts
+    retry_attempts: 5 # Max retry attempts on failure
+
+  # Output configuration
+  output:
+    compress: false # Gzip compress output files
+    max_age_days: 30 # Delete files older than this
+    max_files_per_type: 100 # Keep max N files per report type
+
+  # Health check configuration
+  health_check:
+    enabled: true # Enable HTTP-based health checks (default: true)
+    port: 8088 # HTTP port for health checks

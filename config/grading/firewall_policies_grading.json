@@ -1,0 +1,13 @@
+{
+  "platform_requirements": [
+    {
+      "platform_name": "all",
+      "policy_requirements": {
+        "enabled": true,
+        "default_inbound": "DENY",
+        "enforce": true,
+        "test_mode": false
+      }
+    }
+  ]
+}

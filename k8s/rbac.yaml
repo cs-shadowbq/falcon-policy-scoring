@@ -1,0 +1,43 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: falcon-policy-audit
+  namespace: endpoint-readiness-audit
+  labels:
+    app: falcon-policy-audit
+    component: daemon
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: falcon-policy-audit-role
+  namespace: endpoint-readiness-audit
+  labels:
+    app: falcon-policy-audit
+    component: daemon
+rules:
+  # Add any Kubernetes API permissions needed here
+  # Currently minimal permissions for daemon operation
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: falcon-policy-audit
+  namespace: endpoint-readiness-audit
+  labels:
+    app: falcon-policy-audit
+    component: daemon
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: falcon-policy-audit
+subjects:
+  - kind: ServiceAccount
+    name: falcon-policy-audit
+    namespace: endpoint-readiness-audit

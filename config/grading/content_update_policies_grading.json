@@ -1,0 +1,28 @@
+{
+  "policies": [
+    {
+      "platform_name": "all",
+      "enabled": true,
+      "settings": {
+        "ring_assignment_settings": [
+          {
+            "id": "vulnerability_management",
+            "ring_points": "3"
+          },
+          {
+            "id": "system_critical",
+            "ring_points": "3"
+          },
+          {
+            "id": "sensor_operations",
+            "ring_points": "3"
+          },
+          {
+            "id": "rapid_response_al_bl_listing",
+            "ring_points": "3"
+          }
+        ]
+      }
+    }
+  ]
+}
