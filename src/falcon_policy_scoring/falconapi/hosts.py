@@ -1,4 +1,4 @@
-import time
+"""Hosts API class for querying and fetching CrowdStrike Falcon device information."""
 import logging
 from falcon_policy_scoring.utils.core import epoch_now
 
@@ -36,7 +36,7 @@ class Hosts:
             # If the device list is large, don't include in FQL
             if len(device_ids) > 100:  # Arbitrary threshold
                 use_device_ids_in_fql = False
-                logging.info(f"Large device list ({len(device_ids)} devices) with additional filters. Will apply device_id filter client-side.")
+                logging.info("Large device list (%s devices) with additional filters. Will apply device_id filter client-side.", len(device_ids))
 
         # Build the filter with or without device IDs in FQL
         device_ids_for_fql = device_ids if use_device_ids_in_fql else None
@@ -93,8 +93,8 @@ class Hosts:
 
         if r['status_code'] != 200:
             errors = r.get('body', {}).get('errors', [])
-            logging.error(f"Failed to query device count. Status: {r['status_code']}, Errors: {errors}")
-            logging.error(f"Filter used: {self.filter}")
+            logging.error("Failed to query device count. Status: %s, Errors: %s", r['status_code'], errors)
+            logging.error("Filter used: %s", self.filter)
             raise RuntimeError(f"Failed to query devices: {errors}")
 
         total = r['body']['meta']['pagination']['total']
@@ -107,7 +107,7 @@ class Hosts:
         QueryDevicesByFilterScroll uses string offset tokens that expire after 2 minutes.
         Supports up to 10,000 records per request for improved performance.
         """
-        logging.info(f"Fetching {self.total} devices from Falcon API using scroll pagination (filter: {self.filter})...")
+        logging.info("Fetching %s devices from Falcon API using scroll pagination (filter: %s)...", self.total, self.filter)
 
         all_devices = []
         offset_token = None  # Start with no offset for first request
@@ -130,13 +130,13 @@ class Hosts:
             r = self.falcon.command("QueryDevicesByFilterScroll", **params)
 
             if r['status_code'] != 200:
-                logging.error(f"Failed to fetch devices: {r.get('body', {}).get('errors', [])}")
+                logging.error("Failed to fetch devices: %s", r.get('body', {}).get('errors', []))
                 break
 
             device_ids = r['body'].get('resources', [])
             all_devices.extend(device_ids)
 
-            logging.debug(f"Page {page}: Fetched {len(device_ids)} device IDs (total so far: {len(all_devices)}/{self.total})")
+            logging.debug("Page %s: Fetched %s device IDs (total so far: %s/%s)", page, len(device_ids), len(all_devices), self.total)
 
             # Check if there are more pages
             meta = r['body'].get('meta', {})
@@ -151,9 +151,9 @@ class Hosts:
         if self.device_ids_filter:
             original_count = len(all_devices)
             all_devices = [did for did in all_devices if did in self.device_ids_filter]
-            logging.info(f"Applied client-side device_id filter: {len(all_devices)} of {original_count} devices matched")
+            logging.info("Applied client-side device_id filter: %s of %s devices matched", len(all_devices), original_count)
 
-        logging.info(f"Fetched {len(all_devices)} device IDs from Falcon API.")
+        logging.info("Fetched %s device IDs from Falcon API.", len(all_devices))
 
         hosts_dict = {'epoch': epoch_now(),
                       'cid': self.cid,

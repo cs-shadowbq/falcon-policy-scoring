@@ -33,7 +33,7 @@ class TextOutputStrategy(OutputStrategy):
         from .sorters import sort_policies, sort_hosts
         from .formatters import (
             print_policy_table, print_policy_details,
-            build_host_table, print_host_stats, calculate_cache_info
+            build_host_table, print_host_stats
         )
         from .data_fetcher import collect_host_data, calculate_host_stats, find_host_by_name
         from .helpers import fetch_all_graded_policies, determine_policy_types_to_display, get_policy_status
@@ -275,7 +275,7 @@ class JsonOutputStrategy(OutputStrategy):
         output_file = args.output_file
 
         if output_file:
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(json_str)
             if context.verbose:
                 context.console.print(f"[green]JSON output written to: {output_file}[/green]")

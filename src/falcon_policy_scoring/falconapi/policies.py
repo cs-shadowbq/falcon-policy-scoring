@@ -118,7 +118,7 @@ def get_policies(falcon, policy_type):
     limit = config.get('limit', 500)  # Use configured limit or default to 500
     is_shim = config.get('is_shim', False)  # Check if this is a custom shim function
 
-    logging.info(f"Fetching {policy_type} policies using command: {command} (limit: {limit})")
+    logging.info("Fetching %s policies using command: %s (limit: %s)", policy_type, command, limit)
 
     # Fetch all policies with pagination support
     all_policies = []
@@ -132,7 +132,7 @@ def get_policies(falcon, policy_type):
                 from falcon_policy_scoring.falconapi import it_automation
                 response = it_automation.query_combined_it_automation_policies(falcon, limit=limit, offset=offset)
             else:
-                logging.error(f"Unknown shim function for policy type: {policy_type}")
+                logging.error("Unknown shim function for policy type: %s", policy_type)
                 return {'error': 500, 'status_code': 500, 'body': {}}
         else:
             # Normal API command
@@ -157,10 +157,10 @@ def get_policies(falcon, policy_type):
             }
 
         if response['status_code'] == 403:
-            logging.warning(f"Access denied (403) for {policy_type} policies")
+            logging.warning("Access denied (403) for %s policies", policy_type)
             return {'error': 403, 'status_code': 403, 'body': {}}
         elif response['status_code'] != 200:
-            logging.error(f"Failed to fetch {policy_type} policies: {response}")
+            logging.error("Failed to fetch %s policies: %s", policy_type, response)
             return {'error': response['status_code'], 'status_code': response['status_code'], 'body': {}}
 
         # Get resources from this batch
@@ -172,7 +172,7 @@ def get_policies(falcon, policy_type):
         pagination = meta.get('pagination', {})
         total = pagination.get('total', 0)
 
-        logging.info(f"Fetched {len(resources)} {policy_type} policies in this batch (total so far: {len(all_policies)}/{total})")
+        logging.info("Fetched %s %s policies in this batch (total so far: %s/%s)", len(resources), policy_type, len(all_policies), total)
 
         # Stop if we've fetched all policies
         if len(all_policies) >= total or len(resources) == 0:
@@ -181,7 +181,7 @@ def get_policies(falcon, policy_type):
         # Move to next batch
         offset += limit
 
-    logging.info(f"Successfully fetched all {len(all_policies)} {policy_type} policies")
+    logging.info("Successfully fetched all %s %s policies", len(all_policies), policy_type)
 
     # Return response in the same format as original
     final_response = response.copy()
@@ -247,15 +247,15 @@ def fetch_and_store_policy(falcon, db_adapter, cid, policy_type):
             db_adapter.put_policies(table_name, cid, response)
 
             if 'error' in response:
-                logging.warning(f"Stored {policy_type} policies error ({response['error']}) for CID {cid}")
+                logging.warning("Stored %s policies error (%s) for CID %s", policy_type, response['error'], cid)
             else:
-                logging.info(f"Stored {policy_type} policies for CID {cid}")
+                logging.info("Stored %s policies for CID %s", policy_type, cid)
             return True
         else:
-            logging.error(f"Failed to fetch {policy_type} policies")
+            logging.error("Failed to fetch %s policies", policy_type)
             return False
     except Exception as e:
-        logging.error(f"Exception while fetching {policy_type} policies: {e}")
+        logging.error("Exception while fetching %s policies: %s", policy_type, e)
         return False
 
 
@@ -274,7 +274,7 @@ def fetch_and_store_all_policies(falcon, db_adapter, cid):
     # Get all supported policy types
     policy_types = get_all_policy_types()
 
-    logging.info(f"Fetching {len(policy_types)} policy types...")
+    logging.info("Fetching %s policy types...", len(policy_types))
     results = {}
 
     for policy_type in policy_types:
@@ -282,7 +282,7 @@ def fetch_and_store_all_policies(falcon, db_adapter, cid):
             success = fetch_and_store_policy(falcon, db_adapter, cid, policy_type)
             results[policy_type] = success
         except Exception as e:
-            logging.error(f"Error fetching {policy_type} policies: {e}")
+            logging.error("Error fetching %s policies: %s", policy_type, e)
             results[policy_type] = False
 
     return results
@@ -404,7 +404,7 @@ def fetch_grade_and_store_firewall_policies(falcon, db_adapter, cid, grading_con
 
         policies_data = policies_record['policies']
         result['policies_count'] = len(policies_data)
-        logging.info(f"Found {len(policies_data)} firewall policies")
+        logging.info("Found %s firewall policies", len(policies_data))
 
         # Step 2: Fetch policy containers for all policies
         logging.info("Step 2: Fetching policy containers...")
@@ -412,14 +412,14 @@ def fetch_grade_and_store_firewall_policies(falcon, db_adapter, cid, grading_con
         containers_result = firewall_module.fetch_policy_containers(falcon, db_adapter, policy_ids, cid)
         policy_containers_map = containers_result['policy_containers']
         result['containers_count'] = len(policy_containers_map)
-        logging.info(f"Fetched {len(policy_containers_map)} policy containers")
+        logging.info("Fetched %s policy containers", len(policy_containers_map))
 
         result['fetch_success'] = True
 
         # Step 3: Load grading config
         logging.info("Step 3: Loading grading configuration...")
         if grading_config_file:
-            logging.info(f"Loading grading configuration from {grading_config_file}")
+            logging.info("Loading grading configuration from %s", grading_config_file)
             grading_config = grading_engine.load_grading_config(config_file=grading_config_file)
         else:
             logging.info("Loading default firewall policies grading configuration")
@@ -430,7 +430,7 @@ def fetch_grade_and_store_firewall_policies(falcon, db_adapter, cid, grading_con
             return result
 
         # Step 4: Grade policies with their containers
-        logging.info(f"Step 4: Grading {len(policies_data)} firewall policies...")
+        logging.info("Step 4: Grading %s firewall policies...", len(policies_data))
         graded_results = grading_engine.grade_all_firewall_policies(
             policies_data, policy_containers_map, grading_config
         )
@@ -449,12 +449,12 @@ def fetch_grade_and_store_firewall_policies(falcon, db_adapter, cid, grading_con
         result['failed_policies'] = len(graded_results) - result['passed_policies']
 
         logging.info(
-            f"Firewall grading complete: {result['passed_policies']}/{result['policies_count']} policies passed, "
-            f"{result['containers_count']} policy containers"
+            "Firewall grading complete: %s/%s policies passed, %s policy containers",
+            result['passed_policies'], result['policies_count'], result['containers_count']
         )
 
     except Exception as e:
-        logging.error(f"Error during fetch_grade_and_store_firewall_policies: {e}")
+        logging.error("Error during fetch_grade_and_store_firewall_policies: %s", e)
         import traceback
         logging.error(traceback.format_exc())
 
@@ -520,7 +520,7 @@ def fetch_grade_and_store_device_control_policies(falcon, db_adapter, cid, gradi
 
         policies_data = policies_record['policies']
         result['policies_count'] = len(policies_data)
-        logging.info(f"Found {len(policies_data)} device control policies")
+        logging.info("Found %s device control policies", len(policies_data))
         # Step 1: Fetch device control policies
         logging.info("Step 1: Fetching device control policies...")
         fetch_and_store_policy(falcon, db_adapter, cid, 'device_control')
@@ -532,7 +532,7 @@ def fetch_grade_and_store_device_control_policies(falcon, db_adapter, cid, gradi
 
         policies_data = policies_record['policies']
         result['policies_count'] = len(policies_data)
-        logging.info(f"Found {len(policies_data)} device control policies")
+        logging.info("Found %s device control policies", len(policies_data))
 
         # Step 2: Fetch policy settings for all policies
         logging.info("Step 2: Fetching policy settings...")
@@ -540,14 +540,14 @@ def fetch_grade_and_store_device_control_policies(falcon, db_adapter, cid, gradi
         settings_result = device_control_module.fetch_policy_settings(falcon, db_adapter, policy_ids, cid)
         policy_settings_map = settings_result['policy_settings']
         result['settings_count'] = len(policy_settings_map)
-        logging.info(f"Fetched {len(policy_settings_map)} policy settings")
+        logging.info("Fetched %s policy settings", len(policy_settings_map))
 
         result['fetch_success'] = True
 
         # Step 3: Load grading config
         logging.info("Step 3: Loading grading configuration...")
         if grading_config_file:
-            logging.info(f"Loading grading configuration from {grading_config_file}")
+            logging.info("Loading grading configuration from %s", grading_config_file)
             grading_config = grading_engine.load_grading_config(config_file=grading_config_file)
         else:
             logging.info("Loading default device control policies grading configuration")
@@ -558,7 +558,7 @@ def fetch_grade_and_store_device_control_policies(falcon, db_adapter, cid, gradi
             return result
 
         # Step 4: Grade policies with their settings
-        logging.info(f"Step 4: Grading {len(policies_data)} device control policies...")
+        logging.info("Step 4: Grading %s device control policies...", len(policies_data))
         graded_results = grading_engine.grade_all_device_control_policies(
             policies_data, policy_settings_map, grading_config
         )
@@ -577,12 +577,12 @@ def fetch_grade_and_store_device_control_policies(falcon, db_adapter, cid, gradi
         result['failed_policies'] = len(graded_results) - result['passed_policies']
 
         logging.info(
-            f"Device control grading complete: {result['passed_policies']}/{result['policies_count']} policies passed, "
-            f"{result['settings_count']} policy settings"
+            "Device control grading complete: %s/%s policies passed, %s policy settings",
+            result['passed_policies'], result['policies_count'], result['settings_count']
         )
 
     except Exception as e:
-        logging.error(f"Error during fetch_grade_and_store_device_control_policies: {e}")
+        logging.error("Error during fetch_grade_and_store_device_control_policies: %s", e)
         import traceback
         logging.error(traceback.format_exc())
 
@@ -638,13 +638,13 @@ def fetch_grade_and_store_it_automation_policies(falcon, db_adapter, cid, gradin
             return result
 
         result['policies_count'] = len(policies_data['policies'])
-        logging.info(f"Found {result['policies_count']} IT automation policies")
+        logging.info("Found %s IT automation policies", result['policies_count'])
         result['fetch_success'] = True
 
         # Step 2: Load grading config
         logging.info("Step 2: Loading grading configuration...")
         if grading_config_file:
-            logging.info(f"Loading grading configuration from {grading_config_file}")
+            logging.info("Loading grading configuration from %s", grading_config_file)
             grading_config = grading_engine.load_grading_config(config_file=grading_config_file)
         else:
             logging.info("Loading default IT automation policies grading configuration")
@@ -655,7 +655,7 @@ def fetch_grade_and_store_it_automation_policies(falcon, db_adapter, cid, gradin
             return result
 
         # Step 3: Grade policies
-        logging.info(f"Step 3: Grading {result['policies_count']} IT automation policies...")
+        logging.info("Step 3: Grading %s IT automation policies...", result['policies_count'])
         graded_results = grading_engine.grade_all_it_automation_policies(
             policies_data, grading_config
         )
@@ -674,11 +674,12 @@ def fetch_grade_and_store_it_automation_policies(falcon, db_adapter, cid, gradin
         result['failed_policies'] = len(graded_results) - result['passed_policies']
 
         logging.info(
-            f"IT automation grading complete: {result['passed_policies']}/{result['policies_count']} policies passed"
+            "IT automation grading complete: %s/%s policies passed",
+            result['passed_policies'], result['policies_count']
         )
 
     except Exception as e:
-        logging.error(f"Error during fetch_grade_and_store_it_automation_policies: {e}")
+        logging.error("Error during fetch_grade_and_store_it_automation_policies: %s", e)
         import traceback
         logging.error(traceback.format_exc())
 

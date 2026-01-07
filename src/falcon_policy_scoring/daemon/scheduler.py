@@ -131,7 +131,7 @@ class Scheduler:
             kwargs: Keyword arguments for handler
         """
         if name in self.tasks:
-            logger.warning(f"Task '{name}' already exists. Replacing.")
+            logger.warning("Task '%s' already exists. Replacing.", name)
 
         task = ScheduledTask(
             name=name,
@@ -145,25 +145,25 @@ class Scheduler:
         task.next_run = self._parser.get_next_run(schedule)
         self.tasks[name] = task
 
-        logger.info(f"Scheduled task '{name}' with schedule '{schedule}'. Next run: {task.next_run}")
+        logger.info("Scheduled task '%s' with schedule '%s'. Next run: %s", name, schedule, task.next_run)
 
     def remove_task(self, name: str) -> None:
         """Remove a scheduled task."""
         if name in self.tasks:
             del self.tasks[name]
-            logger.info(f"Removed task '{name}'")
+            logger.info("Removed task '%s'", name)
 
     def enable_task(self, name: str) -> None:
         """Enable a task."""
         if name in self.tasks:
             self.tasks[name].enabled = True
-            logger.info(f"Enabled task '{name}'")
+            logger.info("Enabled task '%s'", name)
 
     def disable_task(self, name: str) -> None:
         """Disable a task without removing it."""
         if name in self.tasks:
             self.tasks[name].enabled = False
-            logger.info(f"Disabled task '{name}'")
+            logger.info("Disabled task '%s'", name)
 
     def get_task_status(self, name: str) -> Optional[Dict]:
         """Get status information for a task."""
@@ -197,7 +197,7 @@ class Scheduler:
                 continue
 
             if task.next_run and now >= task.next_run:
-                logger.info(f"Running task '{name}'")
+                logger.info("Running task '%s'", name)
                 success = True
                 error_msg = None
 
@@ -205,16 +205,16 @@ class Scheduler:
                     task.handler(*task.args, **task.kwargs)
                     task.last_run = now
                 except Exception as e:
-                    logger.error(f"Task '{name}' failed: {e}", exc_info=True)
+                    logger.error("Task '%s' failed: %s", name, e, exc_info=True)
                     success = False
                     error_msg = str(e)
 
                 # Calculate next run time
                 try:
                     task.next_run = self._parser.get_next_run(task.schedule, now)
-                    logger.info(f"Task '{name}' next run: {task.next_run}")
+                    logger.info("Task '%s' next run: %s", name, task.next_run)
                 except Exception as e:
-                    logger.error(f"Failed to calculate next run for task '{name}': {e}")
+                    logger.error("Failed to calculate next run for task '%s': %s", name, e)
                     task.enabled = False
 
                 results.append((name, success, error_msg))
@@ -228,7 +228,7 @@ class Scheduler:
             check_interval: Seconds between checks (default: 60)
         """
         self.running = True
-        logger.info(f"Scheduler started. Check interval: {check_interval}s")
+        logger.info("Scheduler started. Check interval: %ss", check_interval)
 
         while self.running:
             try:
@@ -245,7 +245,7 @@ class Scheduler:
                 logger.info("Scheduler interrupted by user")
                 break
             except Exception as e:
-                logger.error(f"Scheduler error: {e}", exc_info=True)
+                logger.error("Scheduler error: %s", e, exc_info=True)
                 # Also use incremental sleep for error recovery
                 for _ in range(check_interval):
                     if not self.running:

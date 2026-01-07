@@ -40,13 +40,13 @@ def fetch_policy_settings(falcon, db_adapter, policy_ids: List[str], cid: str) -
         settings_map = cached['policy_settings']
         # Check if we have all requested policy IDs
         if all(pid in settings_map for pid in policy_ids):
-            logging.info(f"Using cached device control policy settings: {len(policy_ids)} settings")
+            logging.info("Using cached device control policy settings: %s settings", len(policy_ids))
             return {
                 'policy_settings': {pid: settings_map[pid] for pid in policy_ids},
                 'count': len(policy_ids)
             }
 
-    logging.info(f"Fetching device control policy settings for {len(policy_ids)} policies...")
+    logging.info("Fetching device control policy settings for %s policies...", len(policy_ids))
 
     try:
         # Fetch policy settings - the API returns full policy details including settings
@@ -64,7 +64,7 @@ def fetch_policy_settings(falcon, db_adapter, policy_ids: List[str], cid: str) -
 
         for i in range(0, len(policy_ids), batch_size):
             batch_ids = policy_ids[i:i + batch_size]
-            logging.info(f"Fetching device control settings batch {i // batch_size + 1} ({len(batch_ids)} policies)...")
+            logging.info("Fetching device control settings batch %s (%s policies)...", i // batch_size + 1, len(batch_ids))
 
             # Fetch detailed policy info including settings
             response = falcon.command("getDeviceControlPolicies", ids=batch_ids)
@@ -78,11 +78,11 @@ def fetch_policy_settings(falcon, db_adapter, policy_ids: List[str], cid: str) -
                             'policy_id': policy['id'],
                             'settings': policy['settings']
                         })
-                logging.info(f"Fetched {len(batch_policies)} policy settings in this batch")
+                logging.info("Fetched %s policy settings in this batch", len(batch_policies))
             else:
-                logging.error(f"Failed to fetch device control settings batch: {response.get('body', {})}")
+                logging.error("Failed to fetch device control settings batch: %s", response.get('body', {}))
 
-        logging.info(f"Total device control policy settings fetched: {len(all_settings)}")
+        logging.info("Total device control policy settings fetched: %s", len(all_settings))
 
         # Build map: policy_id -> settings
         settings_map = {item['policy_id']: item['settings'] for item in all_settings}
@@ -96,7 +96,7 @@ def fetch_policy_settings(falcon, db_adapter, policy_ids: List[str], cid: str) -
         }
 
     except Exception as e:
-        logging.error(f"Exception fetching device control policy settings: {e}")
+        logging.error("Exception fetching device control policy settings: %s", e)
         import traceback
         logging.error(traceback.format_exc())
         return {'policy_settings': {}, 'count': 0}

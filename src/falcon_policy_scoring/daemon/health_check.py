@@ -53,7 +53,7 @@ class HealthCheck:
         self.server_thread = Thread(target=self.server.serve_forever, daemon=True)
         self.server_thread.start()
 
-        logger.info(f"Health check server started on port {self.port}")
+        logger.info("Health check server started on port %s", self.port)
 
     def stop(self) -> None:
         """Stop the health check HTTP server."""
@@ -71,7 +71,7 @@ class HealthCheck:
 
             def log_message(self, format, *args):
                 """Override to use our logger."""
-                logger.info(f"Health check request: {format % args}")
+                logger.info("Health check request: %s", format % args)
 
             def do_GET(self):
                 """Handle GET requests."""
@@ -85,7 +85,7 @@ class HealthCheck:
                     else:
                         self.send_error(404, "Not Found")
                 except Exception as e:
-                    logger.error(f"Error handling health check request: {e}", exc_info=True)
+                    logger.error("Error handling health check request: %s", e, exc_info=True)
                     try:
                         self.send_error(500, f"Internal Server Error: {str(e)}")
                     except:
@@ -101,11 +101,11 @@ class HealthCheck:
                         'timestamp': get_utc_iso_timestamp(),
                         'uptime_seconds': (datetime.now() - health_check._started_at).total_seconds()
                     }
-                    logger.info(f"Sending response: {response}")
+                    logger.info("Sending response: %s", response)
                     self._send_json_response(200, response)
                     logger.info("Response sent successfully")
                 except Exception as e:
-                    logger.error(f"Error in _handle_health: {e}", exc_info=True)
+                    logger.error("Error in _handle_health: %s", e, exc_info=True)
                     raise
 
             def _handle_readiness(self):
@@ -167,7 +167,7 @@ class HealthCheck:
             new_status = HealthStatus.DEGRADED
 
         if new_status != self._status:
-            logger.warning(f"Health status changed: {self._status.value} -> {new_status.value}")
+            logger.warning("Health status changed: %s -> %s", self._status.value, new_status.value)
             self._status = new_status
 
     def update_metrics(self, metrics: Dict[str, Any]) -> None:

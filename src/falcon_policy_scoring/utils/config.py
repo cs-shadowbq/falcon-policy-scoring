@@ -1,3 +1,4 @@
+"""Configuration file utilities for loading and parsing YAML config files."""
 import yaml
 
 
@@ -71,8 +72,16 @@ def _load_config_defaults(config):
 
 
 def read_config_from_yaml(config_file="config/config.yaml"):
+    """Read and parse YAML configuration file with defaults.
+
+    Args:
+        config_file: Path to YAML config file (default: config/config.yaml)
+
+    Returns:
+        dict: Configuration dictionary with all defaults applied
+    """
     try:
-        with open(config_file, 'r') as file:
+        with open(config_file, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file) or {}
     except Exception as e:
         print(f"Error reading App configuration from {config_file}: {e}")

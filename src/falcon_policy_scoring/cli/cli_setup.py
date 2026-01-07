@@ -1,8 +1,6 @@
 """CLI setup and initialization functions."""
 import argparse
 import os
-import sys
-from pathlib import Path
 from typing import Tuple
 from datetime import datetime, timedelta
 from dotenv import load_dotenv

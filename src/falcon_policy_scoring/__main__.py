@@ -124,6 +124,7 @@ def main():
     console.print(f"[bold red]Error:[/bold red] Unknown command '{args.command}'")
     sys.exit(1)
 
+
 def _run_daemon_mode(args):
     """Run the daemon mode for continuous policy auditing."""
     from falcon_policy_scoring.daemon.main import DaemonRunner
@@ -152,7 +153,7 @@ def _run_daemon_mode(args):
         daemon.initialize()
 
         console = Console()
-        console.print(f"[bold green]Daemon started[/bold green]")
+        console.print("[bold green]Daemon started[/bold green]")
         console.print(f"Config: {args.config}")
         console.print(f"Output: {output_dir}")
 

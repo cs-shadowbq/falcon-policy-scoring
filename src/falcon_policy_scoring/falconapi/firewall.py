@@ -41,13 +41,13 @@ def fetch_policy_containers(falcon, db_adapter, policy_ids: List[str], cid: str)
         containers_map = cached['policy_containers']
         # Check if we have all requested policy IDs
         if all(pid in containers_map for pid in policy_ids):
-            logging.info(f"Using cached policy containers: {len(policy_ids)} containers")
+            logging.info("Using cached policy containers: %s containers", len(policy_ids))
             return {
                 'policy_containers': {pid: containers_map[pid] for pid in policy_ids},
                 'count': len(policy_ids)
             }
 
-    logging.info(f"Fetching policy containers for {len(policy_ids)} policies...")
+    logging.info("Fetching policy containers for %s policies...", len(policy_ids))
 
     try:
         # Fetch policy containers in batches (API limit typically 100-500)
@@ -56,18 +56,18 @@ def fetch_policy_containers(falcon, db_adapter, policy_ids: List[str], cid: str)
 
         for i in range(0, len(policy_ids), batch_size):
             batch_ids = policy_ids[i:i + batch_size]
-            logging.info(f"Fetching policy container batch {i // batch_size + 1} ({len(batch_ids)} containers)...")
+            logging.info("Fetching policy container batch %s (%s containers)...", i // batch_size + 1, len(batch_ids))
 
             response = falcon.command("get_policy_containers", ids=batch_ids)
 
             if response["status_code"] == 200:
                 batch_containers = response["body"]["resources"]
                 all_containers.extend(batch_containers)
-                logging.info(f"Fetched {len(batch_containers)} policy containers in this batch")
+                logging.info("Fetched %s policy containers in this batch", len(batch_containers))
             else:
-                logging.error(f"Failed to fetch policy container batch: {response.get('body', {})}")
+                logging.error("Failed to fetch policy container batch: %s", response.get('body', {}))
 
-        logging.info(f"Total policy containers fetched: {len(all_containers)}")
+        logging.info("Total policy containers fetched: %s", len(all_containers))
 
         # Build map: policy_id -> container
         containers_map = {c['policy_id']: c for c in all_containers}
@@ -81,9 +81,5 @@ def fetch_policy_containers(falcon, db_adapter, policy_ids: List[str], cid: str)
         }
 
     except Exception as e:
-        logging.error(f"Exception fetching policy containers: {e}")
-        return {'policy_containers': {}, 'count': 0}
-
-    except Exception as e:
-        logging.error(f"Exception fetching policy containers: {e}")
+        logging.error("Exception fetching policy containers: %s", e)
         return {'policy_containers': {}, 'count': 0}

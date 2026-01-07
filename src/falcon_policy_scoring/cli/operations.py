@@ -1,5 +1,4 @@
 """Operations for fetching and grading policies and hosts."""
-from falcon_policy_scoring.falconapi.policies import fetch_and_store_all_policies
 from falcon_policy_scoring.falconapi.hosts import Hosts
 from falcon_policy_scoring.falconapi.host_group import HostGroup
 from falcon_policy_scoring.falconapi.zero_trust import fetch_zero_trust_assessments
@@ -9,7 +8,6 @@ from falcon_policy_scoring.falconapi.policies import get_policy_table_name
 from .constants import Style, DEFAULT_PROGRESS_THRESHOLD
 from falcon_policy_scoring.utils.constants import DEFAULT_BATCH_SIZE
 from .helpers import parse_host_groups
-import logging
 
 
 def parse_product_types(product_types_arg):
