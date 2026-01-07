@@ -1,3 +1,4 @@
+"""Hosts API class for querying and fetching CrowdStrike Falcon device information."""
 import logging
 from falcon_policy_scoring.utils.core import epoch_now
 

@@ -1,10 +1,18 @@
-# logger.py
+"""Logging setup utilities for the application."""
 import logging
 import os
 
 
-# This module sets up a logger for the application.
 def setup_logging(config, worker_name="proc"):
+    """Setup application logging with file handlers and formatting.
+    
+    Args:
+        config: Configuration dict containing logging settings
+        worker_name: Worker identifier prefix for log messages (default: 'proc')
+        
+    Returns:
+        Logger instance configured with specified settings
+    """
     try:
         prefix = f"{worker_name}.{os.getpid()}"
     except:
