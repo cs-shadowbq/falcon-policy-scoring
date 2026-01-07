@@ -152,7 +152,7 @@ def _run_daemon_mode(args):
         daemon.initialize()
 
         console = Console()
-        console.print(f"[bold green]Daemon started[/bold green]")
+        console.print("[bold green]Daemon started[/bold green]")
         console.print(f"Config: {args.config}")
         console.print(f"Output: {output_dir}")
 
