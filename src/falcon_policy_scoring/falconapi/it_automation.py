@@ -8,8 +8,7 @@ import logging
 from typing import Dict, List, Optional
 
 
-def _query_all_policy_ids(falcon, platforms: List[str] = None, limit: int = 500,
-                          log_level: str = 'debug') -> tuple:
+def _query_all_policy_ids(falcon, platforms: List[str] = None, limit: int = 500) -> tuple:
     """
     Query for all IT automation policy IDs across platforms with pagination.
 
@@ -17,7 +16,6 @@ def _query_all_policy_ids(falcon, platforms: List[str] = None, limit: int = 500,
         falcon: FalconPy APIHarnessV2 instance
         platforms: List of platforms to query (defaults to Windows, Linux, Mac)
         limit: Maximum number of records to return per API request
-        log_level: Logging level to use ('debug' or 'info')
 
     Returns:
         Tuple of (policy_ids, permission_error, assist_message)
@@ -29,7 +27,6 @@ def _query_all_policy_ids(falcon, platforms: List[str] = None, limit: int = 500,
         platforms = ['Windows', 'Linux', 'Mac']
 
     all_policy_ids = []
-    log_func = logging.debug if log_level == 'debug' else logging.info
     permission_error_detected = False
     assist_message = None
 
@@ -37,7 +34,7 @@ def _query_all_policy_ids(falcon, platforms: List[str] = None, limit: int = 500,
         platform_offset = 0
 
         while True:
-            log_func(f"Querying {platform} IT automation policies (offset: {platform_offset}, limit: {limit})...")
+            logging.debug("Querying %s IT automation policies (offset: %s, limit: %s)...", platform, platform_offset, limit)
             query_response = falcon.command('ITAutomationQueryPolicies',
                                             platform=platform,
                                             limit=limit,
@@ -67,7 +64,7 @@ def _query_all_policy_ids(falcon, platforms: List[str] = None, limit: int = 500,
             pagination = meta.get('pagination', {})
             platform_total = pagination.get('total', 0)
 
-            log_func(f"Found {len(platform_ids)} {platform} IT automation policy IDs in this batch")
+            logging.debug("Found %s %s IT automation policy IDs in this batch", len(platform_ids), platform)
 
             # Stop if we've fetched all policies for this platform
             if len(platform_ids) == 0 or platform_offset + limit >= platform_total:
@@ -75,8 +72,7 @@ def _query_all_policy_ids(falcon, platforms: List[str] = None, limit: int = 500,
 
             platform_offset += limit
 
-        if log_level == 'info':
-            logging.info(f"Completed fetching all {platform} IT automation policy IDs")
+        logging.info("Completed fetching all %s IT automation policy IDs", platform)
 
         # If permission error detected, stop processing other platforms
         if permission_error_detected:
@@ -85,8 +81,7 @@ def _query_all_policy_ids(falcon, platforms: List[str] = None, limit: int = 500,
     return all_policy_ids, permission_error_detected, assist_message
 
 
-def _fetch_policies_by_ids(falcon, policy_ids: List[str], batch_size: int = 100,
-                           log_level: str = 'debug') -> List[Dict]:
+def _fetch_policies_by_ids(falcon, policy_ids: List[str], batch_size: int = 100) -> List[Dict]:
     """
     Fetch full policy details for the given policy IDs in batches.
 
@@ -94,17 +89,15 @@ def _fetch_policies_by_ids(falcon, policy_ids: List[str], batch_size: int = 100,
         falcon: FalconPy APIHarnessV2 instance
         policy_ids: List of policy IDs to fetch
         batch_size: Maximum number of IDs per ITAutomationGetPolicies call
-        log_level: Logging level to use ('debug' or 'info')
 
     Returns:
         List of policy objects
     """
     all_policies = []
-    log_func = logging.debug if log_level == 'debug' else logging.info
 
     for i in range(0, len(policy_ids), batch_size):
         batch_ids = policy_ids[i:i + batch_size]
-        log_func(f"Fetching IT automation policies batch {i // batch_size + 1} ({len(batch_ids)} policies)...")
+        logging.debug("Fetching IT automation policies batch %s (%s policies)...", i // batch_size + 1, len(batch_ids))
 
         get_response = falcon.command('ITAutomationGetPolicies', ids=batch_ids)
 
@@ -121,8 +114,7 @@ def _fetch_policies_by_ids(falcon, policy_ids: List[str], batch_size: int = 100,
         if get_response['status_code'] == 200:
             batch_policies = get_response['body'].get('resources', [])
             all_policies.extend(batch_policies)
-            if log_level == 'info':
-                logging.info("Fetched %s policies in this batch", len(batch_policies))
+            logging.info("Fetched %s policies in this batch", len(batch_policies))
         else:
             logging.error("Failed to fetch IT automation policies batch: %s", get_response.get('body', {}))
 
@@ -156,7 +148,7 @@ def query_combined_it_automation_policies(falcon, limit: int = 500, offset: int 
             }
     """
     # Step 1: Query for all policy IDs across all platforms
-    all_policy_ids, permission_error, assist_message = _query_all_policy_ids(falcon, limit=limit, log_level='debug')
+    all_policy_ids, permission_error, assist_message = _query_all_policy_ids(falcon, limit=limit)
 
     # If permission error occurred, return error response
     if permission_error:
@@ -185,7 +177,7 @@ def query_combined_it_automation_policies(falcon, limit: int = 500, offset: int 
     paginated_ids = all_policy_ids[offset:offset + limit]
 
     # Step 2: Fetch full policy details for the paginated IDs
-    all_policies = _fetch_policies_by_ids(falcon, paginated_ids, batch_size=100, log_level='debug')
+    all_policies = _fetch_policies_by_ids(falcon, paginated_ids, batch_size=100)
 
     # Return in the expected queryCombined format
     return {
@@ -242,7 +234,7 @@ def fetch_it_automation_policies(falcon, db_adapter, cid: str, force_refresh: bo
 
     try:
         # Step 1: Query for all policy IDs across all platforms with pagination
-        all_policy_ids, permission_error, assist_message = _query_all_policy_ids(falcon, limit=500, log_level='info')
+        all_policy_ids, permission_error, assist_message = _query_all_policy_ids(falcon, limit=500)
 
         # If permission error occurred, return error info immediately (don't store)
         if permission_error:
@@ -270,7 +262,7 @@ def fetch_it_automation_policies(falcon, db_adapter, cid: str, force_refresh: bo
         logging.info("Total IT automation policy IDs found: %s", len(all_policy_ids))
 
         # Step 2: Fetch detailed policy information by IDs
-        all_policies = _fetch_policies_by_ids(falcon, all_policy_ids, batch_size=100, log_level='info')
+        all_policies = _fetch_policies_by_ids(falcon, all_policy_ids, batch_size=100)
 
         logging.info("Total IT automation policies fetched: %s", len(all_policies))
 
