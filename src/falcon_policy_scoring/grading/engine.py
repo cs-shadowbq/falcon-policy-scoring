@@ -28,7 +28,7 @@ def load_grading_config(policy_type='prevention_policies', config_file=None):
         config_file = f'config/grading/{policy_type}_grading.json'
 
     try:
-        with open(config_file, 'r') as f:
+        with open(config_file, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
         logging.error("Failed to load grading config from %s: %s", config_file, e)

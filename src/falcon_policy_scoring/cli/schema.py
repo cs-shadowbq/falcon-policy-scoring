@@ -569,13 +569,13 @@ def handle_schema_generation(args):
         if output_dir.is_dir() or (not output_dir.exists() and output_dir.suffix == ''):
             output_dir.mkdir(parents=True, exist_ok=True)
             output_file = output_dir / f"{report_type}.schema.json"
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(schema_json)
             print(f"Schema written to {output_file}")
         else:
             # Single file output
             output_dir.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_dir, 'w') as f:
+            with open(output_dir, 'w', encoding='utf-8') as f:
                 f.write(schema_json)
             print(f"Schema written to {output_dir}")
     else:
@@ -587,7 +587,7 @@ def handle_schema_generation(args):
             schema_json = json.dumps(schema, indent=2)
             output_file = output_dir / f"{report_type}.schema.json"
 
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(schema_json)
             print(f"Schema written to {output_file}")
 

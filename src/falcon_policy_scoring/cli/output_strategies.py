@@ -275,7 +275,7 @@ class JsonOutputStrategy(OutputStrategy):
         output_file = args.output_file
 
         if output_file:
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(json_str)
             if context.verbose:
                 context.console.print(f"[green]JSON output written to: {output_file}[/green]")
