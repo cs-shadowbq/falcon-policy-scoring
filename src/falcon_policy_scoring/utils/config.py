@@ -73,10 +73,10 @@ def _load_config_defaults(config):
 
 def read_config_from_yaml(config_file="config/config.yaml"):
     """Read and parse YAML configuration file with defaults.
-    
+
     Args:
         config_file: Path to YAML config file (default: config/config.yaml)
-        
+
     Returns:
         dict: Configuration dictionary with all defaults applied
     """

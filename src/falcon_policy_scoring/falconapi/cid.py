@@ -3,10 +3,10 @@
 
 def get_cid(falcon):
     """Get the customer ID without the hash suffix.
-    
+
     Args:
         falcon: FalconAPI instance with valid credentials
-        
+
     Returns:
         str: Customer ID (first part before the dash)
     """
@@ -17,10 +17,10 @@ def get_cid(falcon):
 
 def get_cid_hash(falcon):
     """Get the full customer ID with hash suffix.
-    
+
     Args:
         falcon: FalconAPI instance with valid credentials
-        
+
     Returns:
         str: Full customer ID including hash (CID-HASH format)
     """

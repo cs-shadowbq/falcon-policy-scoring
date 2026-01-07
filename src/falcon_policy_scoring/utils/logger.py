@@ -5,11 +5,11 @@ import os
 
 def setup_logging(config, worker_name="proc"):
     """Setup application logging with file handlers and formatting.
-    
+
     Args:
         config: Configuration dict containing logging settings
         worker_name: Worker identifier prefix for log messages (default: 'proc')
-        
+
     Returns:
         Logger instance configured with specified settings
     """

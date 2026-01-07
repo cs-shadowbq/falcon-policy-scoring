@@ -12,6 +12,8 @@ MLSLIDER_LEVELS = {
 }
 
 # Toggle values mapped to numeric levels
+# Duplicate keys are intentional for mapping to a common value
+# pylint: disable=duplicate-key
 TOGGLE_LEVELS = {
     False: 0,
     True: 1,
@@ -20,6 +22,7 @@ TOGGLE_LEVELS = {
     0: 0,
     1: 1
 }
+# pylint: enable=duplicate-key
 
 # N-level sensor update values mapped to numeric levels
 N_LEVELS = {
@@ -30,4 +33,3 @@ N_LEVELS = {
     'n-1': 3,
     'n': 4
 }
-

@@ -3,7 +3,7 @@
 
 class Host:
     """Represents a single Falcon host with its CID and API connection.
-    
+
     Attributes:
         cid: Customer ID for the Falcon environment
         falcon: FalconAPI instance for making API calls

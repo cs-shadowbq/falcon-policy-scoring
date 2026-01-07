@@ -83,7 +83,3 @@ def fetch_policy_containers(falcon, db_adapter, policy_ids: List[str], cid: str)
     except Exception as e:
         logging.error("Exception fetching policy containers: %s", e)
         return {'policy_containers': {}, 'count': 0}
-
-    except Exception as e:
-        logging.error("Exception fetching policy containers: %s", e)
-        return {'policy_containers': {}, 'count': 0}
