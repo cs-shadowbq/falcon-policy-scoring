@@ -1,4 +1,4 @@
-.PHONY: docs clean docs-serve install test test-coverage test-coverage-serve run help requirements docker-build docker-test docker-push k8s-deploy k8s-delete run-daemon
+.PHONY: docs clean docs-serve install test test-coverage test-coverage-serve workflows run help requirements docker-build docker-test docker-push k8s-deploy k8s-delete run-daemon
 
 help:
 	@echo "Available Make Targets:"
@@ -8,6 +8,7 @@ help:
 	@echo "  test                     Run tests"
 	@echo "  test-coverage            Run tests with coverage report"
 	@echo "  test-coverage-serve      Run tests with coverage report http://localhost:8089"
+	@echo "  workflows                Run similar GitHub workflows locally"
 	@echo "  install                  Install all dependencies"
 	@echo "  requirements             Generate requirements.txt files from pyproject.toml"
 	@echo ""
@@ -67,6 +68,16 @@ test-coverage-serve:
 	$(MAKE) test-coverage
 	@echo "Serving coverage report at http://localhost:8089 ..."
 	python3 -m http.server 8089 --directory htmlcov
+
+workflows:
+	@echo "Running all GitHub workflows locally..."
+	pip install -e ".[dev,test]"
+	pip install pylint bandit
+	@echo "Running Bandit scan..."
+	bandit -r src -ll -ii -s B104
+	@echo "Running Pylint..."
+	pylint src/falcon_policy_scoring --disable=R0801,C0411,C0301,C0413,C0415
+
 
 install:
 	@echo "Installing dependencies..."
