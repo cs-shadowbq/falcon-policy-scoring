@@ -1,6 +1,6 @@
 """Domain models for business logic."""
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Callable
+from typing import Optional, Callable
 
 
 @dataclass

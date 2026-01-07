@@ -85,9 +85,9 @@ class DaemonMetrics:
             self.last_run = run
 
         logger.info(
-            f"Run completed in {run.duration_seconds:.1f}s: "
-            f"hosts={run.hosts_processed}, policies={run.policies_graded}, "
-            f"api_calls={run.api_calls}, success={success}"
+            "Run completed in %.1fs: hosts=%s, policies=%s, api_calls=%s, success=%s",
+            run.duration_seconds, run.hosts_processed, run.policies_graded,
+            run.api_calls, success
         )
 
     def get_summary(self) -> Dict[str, Any]:

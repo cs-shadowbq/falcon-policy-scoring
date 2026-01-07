@@ -5,7 +5,6 @@ from typing import Optional, Callable, Any
 from dataclasses import dataclass
 from threading import Lock
 from collections import deque
-from datetime import datetime, timedelta
 from falcon_policy_scoring.utils.exceptions import RateLimitError
 
 
@@ -137,7 +136,7 @@ class RateLimiter:
                     return False
 
             # Wait for capacity
-            logger.debug(f"Rate limiter waiting {wait_time:.2f}s for capacity")
+            logger.debug("Rate limiter waiting %.2fs for capacity", wait_time)
             self.total_wait_time += wait_time
             self.throttled_requests += 1
             time.sleep(wait_time)
@@ -156,15 +155,15 @@ class RateLimiter:
             self._backoff_until = time.time() + backoff_time
 
             logger.warning(
-                f"Rate limit exceeded (429). Backing off for {backoff_time:.1f}s "
-                f"(attempt {self._consecutive_429s})"
+                "Rate limit exceeded (429). Backing off for %.1fs (attempt %s)",
+                backoff_time, self._consecutive_429s
             )
 
     def reset_backoff(self) -> None:
         """Reset backoff counter after successful request."""
         with self._lock:
             if self._consecutive_429s > 0:
-                logger.info(f"Resetting backoff after {self._consecutive_429s} 429 responses")
+                logger.info("Resetting backoff after %s 429 responses", self._consecutive_429s)
                 self._consecutive_429s = 0
                 self._backoff_until = None
 
@@ -201,13 +200,13 @@ class RateLimiter:
                 # Check for rate limit errors
                 if '429' in error_msg or 'rate limit' in error_msg or 'too many requests' in error_msg:
                     self.handle_429()
-                    logger.warning(f"Attempt {attempt}/{self.config.retry_attempts} failed with rate limit")
+                    logger.warning("Attempt %s/%s failed with rate limit", attempt, self.config.retry_attempts)
                     continue
 
                 # Check for other retryable errors
                 if '503' in error_msg or '502' in error_msg or 'timeout' in error_msg:
                     wait_time = min(self.config.backoff_base ** attempt, 60.0)
-                    logger.warning(f"Attempt {attempt}/{self.config.retry_attempts} failed: {e}. Retrying in {wait_time}s")
+                    logger.warning("Attempt %s/%s failed: %s. Retrying in %ss", attempt, self.config.retry_attempts, e, wait_time)
                     time.sleep(wait_time)
                     continue
 
@@ -217,7 +216,7 @@ class RateLimiter:
 
         # All retries exhausted
         self.failed_requests += 1
-        logger.error(f"All {self.config.retry_attempts} retry attempts exhausted")
+        logger.error("All %s retry attempts exhausted", self.config.retry_attempts)
         raise last_exception
 
     def get_metrics(self) -> dict:

@@ -2,7 +2,6 @@
 from typing import Dict, List, Optional
 from falconpy import APIHarnessV2
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeRemainingColumn
-from falcon_policy_scoring.utils.constants import API_COMMAND_GET_DEVICE_DETAILS, DEFAULT_BATCH_SIZE, RecordType
 from falcon_policy_scoring.utils.policy_helpers import get_policy_status
 from falcon_policy_scoring.utils import host_data as host_data_utils
 

@@ -1,6 +1,3 @@
-import time
-
-
 class Host:
 
     def __init__(self, cid, falcon):

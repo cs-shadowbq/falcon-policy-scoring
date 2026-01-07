@@ -4,17 +4,14 @@ import os
 import signal
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 from falconpy import APIHarnessV2
 
 from falcon_policy_scoring.utils.config import read_config_from_yaml
-from falcon_policy_scoring.utils.logger import setup_logging
 from falcon_policy_scoring.factories.database_factory import DatabaseFactory
 from falcon_policy_scoring.falconapi.cid import get_cid
 from falcon_policy_scoring.falconapi.hosts import Hosts
-from falcon_policy_scoring.utils.policy_registry import get_policy_registry
 from falcon_policy_scoring.utils.policy_registry import get_policy_registry
 from falcon_policy_scoring.utils.host_data import collect_host_data, calculate_host_stats
 from falcon_policy_scoring.utils.policy_helpers import (
@@ -24,10 +21,8 @@ from falcon_policy_scoring.utils.policy_helpers import (
 from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 from falcon_policy_scoring.utils.exceptions import (
     ConfigurationError,
-    ApiConnectionError,
     GradingError,
     ReportGenerationError,
-    SchedulerError,
 )
 
 from .scheduler import Scheduler
@@ -79,7 +74,7 @@ class DaemonRunner:
         signal_name = 'SIGTERM' if signum == signal.SIGTERM else 'SIGINT'
         # Print to console immediately so user sees feedback
         print("\n\033[93mReceived interrupt signal, shutting down gracefully...\033[0m")
-        logger.info(f"Received {signal_name}, initiating graceful shutdown...")
+        logger.info("Received %s, initiating graceful shutdown...", signal_name)
         self.stop()
         # For SIGINT (Ctrl+C), raise KeyboardInterrupt to exit cleanly
         if signum == signal.SIGINT:
@@ -95,14 +90,14 @@ class DaemonRunner:
             logger.info("Configuration reloaded successfully")
         except ConfigurationError as e:
             print(f"\033[91mConfiguration error: {e}\033[0m")
-            logger.error(f"Configuration error: {e}", exc_info=True)
+            logger.error("Configuration error: %s", e, exc_info=True)
         except Exception as e:
             print(f"\033[91mFailed to reload configuration: {e}\033[0m")
-            logger.error(f"Failed to reload configuration: {e}", exc_info=True)
+            logger.error("Failed to reload configuration: %s", e, exc_info=True)
 
     def initialize(self) -> None:
         """Initialize all daemon components."""
-        logger.info(f"Initializing daemon with config: {self.config_path}")
+        logger.info("Initializing daemon with config: %s", self.config_path)
 
         # Load environment variables from .env file if present
         load_dotenv()
@@ -114,7 +109,7 @@ class DaemonRunner:
         db_type = self.config.get('db', {}).get('type', 'sqlite')
         self.adapter = DatabaseFactory.create_adapter(db_type)
         self.adapter.connect(self.config[db_type])
-        logger.info(f"Database initialized: {db_type}")
+        logger.info("Database initialized: %s", db_type)
 
         # Initialize Falcon API client
         falcon_config = self.config.get('falcon_credentials', {})
@@ -139,7 +134,7 @@ class DaemonRunner:
             base_url=base_url
         )
         self.cid = get_cid(self.falcon)
-        logger.info(f"Falcon API initialized for CID: {self.cid}")
+        logger.info("Falcon API initialized for CID: %s", self.cid)
 
         # Initialize rate limiter
         daemon_config = self.config.get('daemon', {})
@@ -155,7 +150,7 @@ class DaemonRunner:
         # Initialize JSON writer
         compress = daemon_config.get('output', {}).get('compress', False)
         self.json_writer = JsonWriter(self.output_dir, compress=compress)
-        logger.info(f"JSON writer initialized: {self.output_dir}")
+        logger.info("JSON writer initialized: %s", self.output_dir)
 
         # Initialize health check (if enabled)
         health_check_config = daemon_config.get('health_check', {})
@@ -164,7 +159,7 @@ class DaemonRunner:
             health_port = health_check_config.get('port', 8088)
             self.health_check = HealthCheck(port=health_port)
             self.health_check.start()
-            logger.info(f"Health check started on port {health_port}")
+            logger.info("Health check started on port %s", health_port)
         else:
             self.health_check = None
             logger.info("Health check disabled by configuration")
@@ -182,7 +177,7 @@ class DaemonRunner:
 
     def _reload_config(self) -> None:
         """Reload configuration from file and update daemon components."""
-        logger.info(f"Reloading configuration from: {self.config_path}")
+        logger.info("Reloading configuration from: %s", self.config_path)
 
         # Load new configuration
         new_config = read_config_from_yaml(self.config_path)
@@ -210,7 +205,7 @@ class DaemonRunner:
         new_compress = daemon_config.get('output', {}).get('compress', False)
 
         if old_compress != new_compress:
-            logger.info(f"Output compression changed: {old_compress} -> {new_compress}")
+            logger.info("Output compression changed: %s -> %s", old_compress, new_compress)
             self.json_writer = JsonWriter(self.output_dir, compress=new_compress)
             logger.info("JSON writer updated")
 
@@ -241,7 +236,7 @@ class DaemonRunner:
                 health_port = new_health_config.get('port', 8088)
                 self.health_check = HealthCheck(port=health_port)
                 self.health_check.start()
-                logger.info(f"Health check restarted on port {health_port}")
+                logger.info("Health check restarted on port %s", health_port)
             else:
                 logger.info("Health check disabled")
 
@@ -276,7 +271,7 @@ class DaemonRunner:
             handler=self._write_metrics
         )
 
-        logger.info(f"Scheduled tasks: fetch_and_grade={fetch_schedule}, cleanup={cleanup_schedule}, metrics={metrics_schedule}")
+        logger.info("Scheduled tasks: fetch_and_grade=%s, cleanup=%s, metrics=%s", fetch_schedule, cleanup_schedule, metrics_schedule)
 
     def _run_fetch_and_grade(self) -> None:
         """Fetch hosts and policies, grade them, and write reports."""
@@ -297,7 +292,7 @@ class DaemonRunner:
 
             total_hosts = len(hosts_list.get('hosts', []))
             run.hosts_processed = total_hosts
-            logger.info(f"Fetched {total_hosts} hosts")
+            logger.info("Fetched %s hosts", total_hosts)
 
             # Fetch and grade policies
             policy_results = {}
@@ -307,7 +302,7 @@ class DaemonRunner:
             ])
 
             for policy_type in policy_types:
-                logger.info(f"Grading {policy_type} policies...")
+                logger.info("Grading %s policies...", policy_type)
 
                 try:
                     result = self._grade_policy_type(policy_type, run)
@@ -318,10 +313,10 @@ class DaemonRunner:
                     run.policies_failed += result.get('failed_policies', 0)
 
                 except GradingError as e:
-                    logger.error(f"Grading error for {policy_type} policies: {e}")
+                    logger.error("Grading error for %s policies: %s", policy_type, e)
                     run.api_errors += 1
                 except Exception as e:
-                    logger.error(f"Failed to grade {policy_type} policies: {e}")
+                    logger.error("Failed to grade %s policies: %s", policy_type, e)
                     run.api_errors += 1
 
             # Generate and write reports
@@ -340,7 +335,7 @@ class DaemonRunner:
             logger.info("Fetch and grade run completed successfully")
 
         except Exception as e:
-            logger.error(f"Fetch and grade run failed: {e}", exc_info=True)
+            logger.error("Fetch and grade run failed: %s", e, exc_info=True)
             self.metrics.complete_run(run, success=False, error_message=str(e))
 
             # Update health check
@@ -364,7 +359,7 @@ class DaemonRunner:
         policy_info = registry.get_by_cli_name(policy_type)
 
         if not policy_info or not policy_info.grader_func:
-            logger.warning(f"Unknown policy type: {policy_type}")
+            logger.warning("Unknown policy type: %s", policy_type)
             return {}
 
         # Execute with rate limiting
@@ -414,9 +409,9 @@ class DaemonRunner:
             self.json_writer.write_host_details(self.adapter, self.cid, self.config)
             logger.info("Host details report written successfully")
         except ReportGenerationError as e:
-            logger.error(f"Report generation error: {e}", exc_info=True)
+            logger.error("Report generation error: %s", e, exc_info=True)
         except Exception as e:
-            logger.error(f"Failed to write host details report: {e}", exc_info=True)
+            logger.error("Failed to write host details report: %s", e, exc_info=True)
 
     def _run_cleanup(self) -> None:
         """Clean up old report files."""
@@ -428,10 +423,10 @@ class DaemonRunner:
             max_files = daemon_config.get('output', {}).get('max_files_per_type', 100)
 
             deleted = self.json_writer.cleanup_old_files(max_age_days, max_files)
-            logger.info(f"Cleanup complete: deleted {deleted} files")
+            logger.info("Cleanup complete: deleted %s files", deleted)
 
         except Exception as e:
-            logger.error(f"Cleanup failed: {e}", exc_info=True)
+            logger.error("Cleanup failed: %s", e, exc_info=True)
 
     def _write_metrics(self) -> None:
         """Write current metrics to file."""
@@ -449,7 +444,7 @@ class DaemonRunner:
             logger.debug("Metrics written")
 
         except Exception as e:
-            logger.error(f"Failed to write metrics: {e}", exc_info=True)
+            logger.error("Failed to write metrics: %s", e, exc_info=True)
 
     def run(self) -> None:
         """Run the daemon indefinitely."""
@@ -464,14 +459,14 @@ class DaemonRunner:
                     self._run_fetch_and_grade()
                     logger.info("Immediate run completed successfully")
                 except Exception as e:
-                    logger.error(f"Immediate run failed: {e}", exc_info=True)
+                    logger.error("Immediate run failed: %s", e, exc_info=True)
 
             # Run scheduler (blocks until stopped)
             check_interval = self.config.get('daemon', {}).get('check_interval', 60)
             self.scheduler.run_forever(check_interval=check_interval)
 
         except Exception as e:
-            logger.error(f"Daemon error: {e}", exc_info=True)
+            logger.error("Daemon error: %s", e, exc_info=True)
             raise
 
         finally:
@@ -500,7 +495,7 @@ class DaemonRunner:
             logger.info("Cleanup complete")
 
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}", exc_info=True)
+            logger.error("Error during cleanup: %s", e, exc_info=True)
 
 
 def main(config_path: str, output_dir: str) -> int:
@@ -524,7 +519,7 @@ def main(config_path: str, output_dir: str) -> int:
         return 130
 
     except Exception as e:
-        logger.error(f"Daemon failed: {e}", exc_info=True)
+        logger.error("Daemon failed: %s", e, exc_info=True)
         return 1
 
 

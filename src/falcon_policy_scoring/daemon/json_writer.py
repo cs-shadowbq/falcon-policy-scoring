@@ -30,7 +30,7 @@ class JsonWriter:
 
         # Ensure output directory exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"JSON writer initialized. Output dir: {self.output_dir}")
+        logger.info("JSON writer initialized. Output dir: %s", self.output_dir)
 
     def write_report(self, report_type: str, data: Dict[str, Any],
                      metadata: Optional[Dict[str, Any]] = None, config: Optional[Dict[str, Any]] = None) -> Path:
@@ -90,7 +90,7 @@ class JsonWriter:
                     json.dump(report, f, indent=2, default=str)
 
             file_size = filepath.stat().st_size
-            logger.info(f"Wrote report to {filepath} ({file_size:,} bytes)")
+            logger.info("Wrote report to %s (%s bytes)", filepath, f"{file_size:,}")
             return filepath
 
         except IOError as e:
@@ -221,11 +221,11 @@ class JsonWriter:
                     json.dump(json_data, f, indent=2, default=str)
 
             file_size = filepath.stat().st_size
-            logger.info(f"Wrote host details to {filepath} ({file_size:,} bytes)")
+            logger.info("Wrote host details to %s (%s bytes)", filepath, f"{file_size:,}")
             return filepath
 
         except Exception as e:
-            logger.error(f"Failed to write host details to {filepath}: {e}")
+            logger.error("Failed to write host details to %s: %s", filepath, e)
             raise
 
     def cleanup_old_files(self, max_age_days: int = 30, max_files: Optional[int] = None) -> int:
@@ -269,7 +269,7 @@ class JsonWriter:
                 if filepath.stat().st_mtime < cutoff_time:
                     filepath.unlink()
                     deleted_count += 1
-                    logger.debug(f"Deleted old file: {filepath}")
+                    logger.debug("Deleted old file: %s", filepath)
 
             # Delete by count (per report type)
             if max_files:
@@ -279,13 +279,13 @@ class JsonWriter:
                             if filepath.exists():  # May have been deleted by age check
                                 filepath.unlink()
                                 deleted_count += 1
-                                logger.debug(f"Deleted excess file: {filepath}")
+                                logger.debug("Deleted excess file: %s", filepath)
 
             if deleted_count > 0:
-                logger.info(f"Cleaned up {deleted_count} old report files")
+                logger.info("Cleaned up %s old report files", deleted_count)
 
         except Exception as e:
-            logger.error(f"Error cleaning up old files: {e}")
+            logger.error("Error cleaning up old files: %s", e)
 
         return deleted_count
 

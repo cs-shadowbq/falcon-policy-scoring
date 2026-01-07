@@ -31,7 +31,7 @@ def load_grading_config(policy_type='prevention_policies', config_file=None):
         with open(config_file, 'r') as f:
             return json.load(f)
     except Exception as e:
-        logging.error(f"Failed to load grading config from {config_file}: {e}")
+        logging.error("Failed to load grading config from %s: %s", config_file, e)
         return {}
 
 
@@ -105,7 +105,7 @@ def grade_setting(setting, minimum_setting):
 
     else:
         # Unknown type, mark as passed but log warning
-        logging.warning(f"Unknown setting type '{setting_type}' for setting {setting_id}")
+        logging.warning("Unknown setting type '%s' for setting %s", setting_type, setting_id)
         result['passed'] = True
 
     return result
@@ -169,7 +169,7 @@ def grade_prevention_policy(policy, grading_config):
 
     # If no platform-specific config found, log warning and return passed
     if not platform_config:
-        logging.warning(f"No grading configuration found for platform '{platform_name}'")
+        logging.warning("No grading configuration found for platform '%s'", platform_name)
         result['passed'] = True
         return result
 
@@ -239,7 +239,7 @@ def grade_all_policies(policies_data, grading_config, policy_grader_func, policy
 
     for i, policy in enumerate(policies_data):
         if policy is None:
-            logging.warning(f"Skipping None policy at index {i}")
+            logging.warning("Skipping None policy at index %s", i)
             continue
 
         result = policy_grader_func(policy, grading_config)
@@ -248,8 +248,9 @@ def grade_all_policies(policies_data, grading_config, policy_grader_func, policy
         # Log the result
         status = "PASSED" if result['passed'] else "FAILED"
         logging.info(
-            f"Policy '{result['policy_name']}' ({result['platform_name']}): {status} "
-            f"- {result['failures_count']}/{result['checks_count']} checks failed"
+            "Policy '%s' (%s): %s - %s/%s checks failed",
+            result['policy_name'], result['platform_name'], status,
+            result['failures_count'], result['checks_count']
         )
 
     return results
@@ -304,7 +305,7 @@ def grade_sensor_update_policy(policy, grading_config):
 
     # If no platform-specific config found, log warning and return passed
     if not platform_config:
-        logging.warning(f"No grading configuration found for platform '{platform_name}'")
+        logging.warning("No grading configuration found for platform '%s'", platform_name)
         result['passed'] = True
         return result
 
@@ -414,7 +415,7 @@ def grade_content_update_policy(policy, grading_config):
 
     # If no platform-specific config found, log warning and return passed
     if not platform_config:
-        logging.warning(f"No grading configuration found for platform '{platform_name}'")
+        logging.warning("No grading configuration found for platform '%s'", platform_name)
         result['passed'] = True
         return result
 
@@ -568,7 +569,7 @@ def grade_firewall_policy(policy, policy_container, grading_config):
             break
 
     if not requirements:
-        logging.warning(f"No grading requirements found for platform '{platform_name}'")
+        logging.warning("No grading requirements found for platform '%s'", platform_name)
         result['passed'] = True
         return result
 
@@ -597,7 +598,7 @@ def grade_firewall_policy(policy, policy_container, grading_config):
 
     # Check 2: Policy container settings (if container exists)
     if not policy_container:
-        logging.warning(f"Policy '{policy_name}' has no policy container")
+        logging.warning("Policy '%s' has no policy container", policy_name)
         result['checks_count'] += 1
         result['failures_count'] += 1
         result['passed'] = False
@@ -669,8 +670,9 @@ def grade_all_firewall_policies(policies_data, policy_containers_map, grading_co
 
         status = "PASSED" if result['passed'] else "PASSED"
         logging.info(
-            f"Policy '{result['policy_name']}' ({result['platform_name']}): "
-            f"{status} - {result['failures_count']}/{result['checks_count']} checks failed"
+            "Policy '%s' (%s): %s - %s/%s checks failed",
+            result['policy_name'], result['platform_name'], status,
+            result['failures_count'], result['checks_count']
         )
 
     return graded_results
@@ -727,7 +729,7 @@ def grade_device_control_policy(policy, settings, grading_config):
             break
 
     if not platform_requirements:
-        logging.warning(f"No grading requirements found for platform {platform_name}")
+        logging.warning("No grading requirements found for platform %s", platform_name)
         result['passed'] = False
         result['failures'].append({
             'field': 'platform',
@@ -785,8 +787,9 @@ def grade_all_device_control_policies(policies_data, policy_settings_map, gradin
 
         status = "PASSED" if result['passed'] else "FAILED"
         logging.info(
-            f"Policy '{result['policy_name']}' ({result['platform_name']}): "
-            f"{status} - {result['failures_count']}/{result['checks_count']} checks failed"
+            "Policy '%s' (%s): %s - %s/%s checks failed",
+            result['policy_name'], result['platform_name'], status,
+            result['failures_count'], result['checks_count']
         )
 
     return graded_results
@@ -820,11 +823,11 @@ def fetch_grade_and_store_policies(falcon, db_adapter, cid, policy_type, grading
     try:
         # Validate policy type has a grader
         if policy_type not in POLICY_GRADERS:
-            logging.error(f"No grader available for policy type '{policy_type}'")
+            logging.error("No grader available for policy type '%s'", policy_type)
             return result
 
         # Fetch policies
-        logging.info(f"Fetching {policy_type} policies for grading...")
+        logging.info("Fetching %s policies for grading...", policy_type)
         fetch_success = False
         try:
             # Import here to avoid circular dependency
@@ -837,7 +840,7 @@ def fetch_grade_and_store_policies(falcon, db_adapter, cid, policy_type, grading
         result['fetch_success'] = fetch_success
 
         if not fetch_success:
-            logging.error(f"Failed to fetch {policy_type} policies, cannot grade")
+            logging.error("Failed to fetch %s policies, cannot grade", policy_type)
             return result
 
         # Retrieve the stored policies
@@ -849,10 +852,10 @@ def fetch_grade_and_store_policies(falcon, db_adapter, cid, policy_type, grading
             if policies_record and policies_record.get('permission_error'):
                 result['permission_error'] = True
                 result['assist_message'] = policies_record.get('assist_message')
-                logging.error(f"Permission error for {policy_type} policies")
+                logging.error("Permission error for %s policies", policy_type)
                 return result
 
-            logging.error(f"No {policy_type} policies found or error retrieving them")
+            logging.error("No %s policies found or error retrieving them", policy_type)
             return result
 
         policies_data = policies_record.get('policies', [])
@@ -860,11 +863,11 @@ def fetch_grade_and_store_policies(falcon, db_adapter, cid, policy_type, grading
 
         # Load grading configuration
         if grading_config_file:
-            logging.info(f"Loading grading configuration from {grading_config_file}")
+            logging.info("Loading grading configuration from %s", grading_config_file)
             grading_config = load_grading_config(config_file=grading_config_file)
         else:
             default_config = DEFAULT_GRADING_CONFIGS.get(policy_type)
-            logging.info(f"Loading default {policy_type} policies grading configuration")
+            logging.info("Loading default %s policies grading configuration", policy_type)
             grading_config = load_grading_config(default_config)
 
         if not grading_config:
@@ -872,7 +875,7 @@ def fetch_grade_and_store_policies(falcon, db_adapter, cid, policy_type, grading
             return result
 
         # Grade the policies using the appropriate grader
-        logging.info(f"Grading {len(policies_data)} {policy_type} policies...")
+        logging.info("Grading %s %s policies...", len(policies_data), policy_type)
         grader_func = POLICY_GRADERS[policy_type]
         graded_results = grader_func(policies_data, grading_config)
 
@@ -889,11 +892,12 @@ def fetch_grade_and_store_policies(falcon, db_adapter, cid, policy_type, grading
         result['failed_policies'] = len(graded_results) - result['passed_policies']
 
         logging.info(
-            f"Grading complete: {result['passed_policies']}/{result['policies_count']} policies passed"
+            "Grading complete: %s/%s policies passed",
+            result['passed_policies'], result['policies_count']
         )
 
     except Exception as e:
-        logging.error(f"Error during fetch_grade_and_store_policies for {policy_type}: {e}")
+        logging.error("Error during fetch_grade_and_store_policies for %s: %s", policy_type, e)
         import traceback
         logging.error(traceback.format_exc())
 
@@ -949,7 +953,7 @@ def grade_it_automation_policy(policy, grading_config):
     platform_requirements = grading_config.get(target)
 
     if not platform_requirements:
-        logging.warning(f"No grading requirements found for platform {target}")
+        logging.warning("No grading requirements found for platform %s", target)
         result['passed'] = False
         result['failures'].append({
             'field': 'platform',
@@ -1007,8 +1011,9 @@ def grade_all_it_automation_policies(policies_data, grading_config):
 
         status = "PASSED" if result['passed'] else "FAILED"
         logging.info(
-            f"IT Automation Policy '{result['policy_name']}' ({result['target']}): "
-            f"{status} - {result['failures_count']}/{result['checks_count']} checks failed"
+            "IT Automation Policy '%s' (%s): %s - %s/%s checks failed",
+            result['policy_name'], result['target'], status,
+            result['failures_count'], result['checks_count']
         )
 
     return graded_results

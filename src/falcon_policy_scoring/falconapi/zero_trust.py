@@ -36,7 +36,7 @@ def fetch_zero_trust_assessments(falcon, device_ids: List[str]) -> Dict:
         logging.warning("No device IDs provided for ZTA fetch")
         return {'assessments': {}, 'count': 0, 'errors': []}
 
-    logging.info(f"Fetching Zero Trust Assessments for {len(device_ids)} devices...")
+    logging.info("Fetching Zero Trust Assessments for %s devices...", len(device_ids))
 
     assessments = {}
     errors = []
@@ -51,7 +51,7 @@ def fetch_zero_trust_assessments(falcon, device_ids: List[str]) -> Dict:
 
             if response['status_code'] == 200:
                 resources = response['body'].get('resources', [])
-                logging.info(f"Retrieved {len(resources)} ZTA assessments from batch")
+                logging.info("Retrieved %s ZTA assessments from batch", len(resources))
 
                 # Index by device ID (aid)
                 for assessment in resources:
@@ -63,7 +63,7 @@ def fetch_zero_trust_assessments(falcon, device_ids: List[str]) -> Dict:
                 batch_errors = response['body'].get('errors', [])
                 if batch_errors:
                     errors.extend(batch_errors)
-                    logging.warning(f"Batch had {len(batch_errors)} errors")
+                    logging.warning("Batch had %s errors", len(batch_errors))
             else:
                 error_msg = f"Failed to fetch ZTA batch: status {response['status_code']}"
                 logging.error(error_msg)
@@ -81,7 +81,7 @@ def fetch_zero_trust_assessments(falcon, device_ids: List[str]) -> Dict:
             'message': error_msg
         })
 
-    logging.info(f"ZTA fetch complete: {len(assessments)} assessments, {len(errors)} errors")
+    logging.info("ZTA fetch complete: %s assessments, %s errors", len(assessments), len(errors))
 
     return {
         'assessments': assessments,
@@ -111,7 +111,7 @@ def query_assessments_by_score(falcon, filter_expr: str = "score:>=0",
             'total': int from pagination metadata
         }
     """
-    logging.info(f"Querying ZTA scores with filter: {filter_expr}")
+    logging.info("Querying ZTA scores with filter: %s", filter_expr)
 
     try:
         response = falcon.command('getAssessmentsByScoreV1',
@@ -125,7 +125,7 @@ def query_assessments_by_score(falcon, filter_expr: str = "score:>=0",
             pagination = meta.get('pagination', {})
             total = pagination.get('total', len(resources))
 
-            logging.info(f"Query returned {len(resources)} results (total: {total})")
+            logging.info("Query returned %s results (total: %s)", len(resources), total)
 
             return {
                 'results': resources,
@@ -179,9 +179,9 @@ def get_audit_report(falcon) -> Optional[Dict]:
                 logging.warning("ZTA audit report returned no resources")
                 return None
         else:
-            logging.error(f"Failed to fetch ZTA audit: status {response['status_code']}")
+            logging.error("Failed to fetch ZTA audit: status %s", response['status_code'])
             return None
 
     except Exception as e:
-        logging.error(f"Exception fetching ZTA audit: {str(e)}")
+        logging.error("Exception fetching ZTA audit: %s", str(e))
         return None

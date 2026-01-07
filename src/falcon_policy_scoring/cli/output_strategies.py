@@ -33,7 +33,7 @@ class TextOutputStrategy(OutputStrategy):
         from .sorters import sort_policies, sort_hosts
         from .formatters import (
             print_policy_table, print_policy_details,
-            build_host_table, print_host_stats, calculate_cache_info
+            build_host_table, print_host_stats
         )
         from .data_fetcher import collect_host_data, calculate_host_stats, find_host_by_name
         from .helpers import fetch_all_graded_policies, determine_policy_types_to_display, get_policy_status

@@ -48,15 +48,15 @@ def _query_all_policy_ids(falcon, platforms: List[str] = None, limit: int = 500,
             weblink = "https://www.falconpy.io/Service-Collections/IT-Automation.html#itautomationquerypolicies"
             is_permission_error, assist_msg = check_scope_permission_error(query_response, 'ITAutomationQueryPolicies', weblink)
             if is_permission_error:
-                error_msg = f"Failed to query {platform} IT automation policies: {query_response.get('body', {})}"
-                logging.warning(error_msg)
+                error_msg = "Failed to query %s IT automation policies: %s"
+                logging.warning(error_msg, platform, query_response.get('body', {}))
                 logging.warning(assist_msg)
                 permission_error_detected = True
                 assist_message = assist_msg
                 break
 
             if query_response['status_code'] != 200:
-                logging.warning(f"Failed to query {platform} IT automation policies: {query_response.get('body', {})}")
+                logging.warning("Failed to query %s IT automation policies: %s", platform, query_response.get('body', {}))
                 break
 
             platform_ids = query_response['body'].get('resources', [])
@@ -113,20 +113,18 @@ def _fetch_policies_by_ids(falcon, policy_ids: List[str], batch_size: int = 100,
         weblink = "https://www.falconpy.io/Service-Collections/IT-Automation.html#itautomationgetpolicies"
         is_permission_error, assist_msg = check_scope_permission_error(get_response, 'ITAutomationGetPolicies', weblink)
         if is_permission_error:
-            error_msg = f"Failed to fetch IT automation policies batch: {get_response.get('body', {})}"
-            logging.error(error_msg)
-            logging.warning(assist_msg)
-            continue
+                error_msg = "Failed to fetch IT automation policies batch: %s"
+                logging.error(error_msg, get_response.get('body', {}))
+                logging.warning(assist_msg)
+                continue
 
-        if get_response['status_code'] == 200:
-            batch_policies = get_response['body'].get('resources', [])
-            all_policies.extend(batch_policies)
-            if log_level == 'info':
-                logging.info(f"Fetched {len(batch_policies)} policies in this batch")
-        else:
-            logging.error(f"Failed to fetch IT automation policies batch: {get_response.get('body', {})}")
-
-    return all_policies
+            if get_response['status_code'] == 200:
+                batch_policies = get_response['body'].get('resources', [])
+                all_policies.extend(batch_policies)
+                if log_level == 'info':
+                    logging.info("Fetched %s policies in this batch", len(batch_policies))
+            else:
+                logging.error("Failed to fetch IT automation policies batch: %s", get_response.get('body', {}))
 
 
 def query_combined_it_automation_policies(falcon, limit: int = 500, offset: int = 0) -> Dict:
@@ -237,7 +235,7 @@ def fetch_it_automation_policies(falcon, db_adapter, cid: str, force_refresh: bo
     if not force_refresh:
         cached = db_adapter.get_policies('it_automation_policies', cid)
         if cached and cached.get('policies'):
-            logging.info(f"Using cached IT automation policies: {len(cached['policies'])} policies")
+            logging.info("Using cached IT automation policies: %s policies", len(cached['policies']))
             return cached
 
     logging.info("Fetching IT automation policies...")
@@ -269,12 +267,12 @@ def fetch_it_automation_policies(falcon, db_adapter, cid: str, force_refresh: bo
             db_adapter.put_policies('it_automation_policies', cid, result)
             return result
 
-        logging.info(f"Total IT automation policy IDs found: {len(all_policy_ids)}")
+        logging.info("Total IT automation policy IDs found: %s", len(all_policy_ids))
 
         # Step 2: Fetch detailed policy information by IDs
         all_policies = _fetch_policies_by_ids(falcon, all_policy_ids, batch_size=100, log_level='info')
 
-        logging.info(f"Total IT automation policies fetched: {len(all_policies)}")
+        logging.info("Total IT automation policies fetched: %s", len(all_policies))
 
         # Store in cache using the format expected by SQLite adapter
         result = {
@@ -293,7 +291,7 @@ def fetch_it_automation_policies(falcon, db_adapter, cid: str, force_refresh: bo
         }
 
     except Exception as e:
-        logging.error(f"Exception fetching IT automation policies: {e}")
+        logging.error("Exception fetching IT automation policies: %s", e)
         import traceback
         traceback.print_exc()
         return {

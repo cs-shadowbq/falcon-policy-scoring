@@ -6,7 +6,7 @@ Optimized for large host groups (20K+ members).
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 class HostGroup:
@@ -43,7 +43,7 @@ class HostGroup:
         if not group_names:
             return {}
 
-        logging.info(f"Resolving {len(group_names)} host group names to IDs...")
+        logging.info("Resolving %s host group names to IDs...", len(group_names))
 
         # Build filter for all group names (case-insensitive)
         # FQL requires lowercase for string filtering
@@ -95,7 +95,7 @@ class HostGroup:
             if missing_names:
                 raise ValueError(f"Host groups not found: {', '.join(missing_names)}")
 
-            logging.info(f"Successfully resolved {len(result)} host group names to IDs")
+            logging.info("Successfully resolved %s host group names to IDs", len(result))
             return result
 
         return {}
@@ -113,7 +113,7 @@ class HostGroup:
         Returns:
             List of device IDs (AIDs) that are members of the group
         """
-        logging.info(f"Fetching members for host group {group_id}...")
+        logging.info("Fetching members for host group %s...", group_id)
 
         all_device_ids = []
         offset = 0
@@ -127,7 +127,7 @@ class HostGroup:
 
             if response['status_code'] != 200:
                 error_msg = response.get('body', {}).get('errors', [])
-                logging.error(f"Failed to fetch group members: {error_msg}")
+                logging.error("Failed to fetch group members: %s", error_msg)
                 break
 
             device_ids = response['body'].get('resources', [])
@@ -138,7 +138,7 @@ class HostGroup:
             pagination = meta.get('pagination', {})
             total = pagination.get('total', 0)
 
-            logging.debug(f"Fetched {len(device_ids)} device IDs (offset={offset}, total={total})")
+            logging.debug("Fetched %s device IDs (offset=%s, total=%s)", len(device_ids), offset, total)
 
             # Check if we've fetched all members
             if offset + len(device_ids) >= total or len(device_ids) == 0:
@@ -146,7 +146,7 @@ class HostGroup:
 
             offset += limit
 
-        logging.info(f"Fetched {len(all_device_ids)} device IDs from group {group_id}")
+        logging.info("Fetched %s device IDs from group %s", len(all_device_ids), group_id)
         return all_device_ids
 
     def get_device_ids_from_groups(self, group_names: List[str]) -> List[str]:
@@ -168,13 +168,13 @@ class HostGroup:
         # Collect all device IDs from all groups
         all_device_ids = []
         for group_name, group_id in name_to_id.items():
-            logging.info(f"Fetching members from group '{group_name}' ({group_id})...")
+            logging.info("Fetching members from group '%s' (%s)...", group_name, group_id)
             device_ids = self.get_all_group_members(group_id)
             all_device_ids.extend(device_ids)
-            logging.info(f"  Found {len(device_ids)} devices in '{group_name}'")
+            logging.info("  Found %s devices in '%s'", len(device_ids), group_name)
 
         # Return unique device IDs (union of all groups)
         unique_ids = list(set(all_device_ids))
-        logging.info(f"Total unique devices across {len(group_names)} groups: {len(unique_ids)}")
+        logging.info("Total unique devices across %s groups: %s", len(group_names), len(unique_ids))
 
         return unique_ids
