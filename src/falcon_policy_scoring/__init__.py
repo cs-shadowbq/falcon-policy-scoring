@@ -14,8 +14,17 @@ except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0-dev"
 
 # Expose commonly used modules
-from falcon_policy_scoring import grading
+from falcon_policy_scoring import cli
+from falcon_policy_scoring import daemon
 from falcon_policy_scoring import falconapi
+from falcon_policy_scoring import grading
 from falcon_policy_scoring import utils
 
-__all__ = ['grading', 'falconapi', 'utils', '__version__']
+__all__ = [
+    '__version__',
+    'cli',
+    'daemon',
+    'falconapi',
+    'grading',
+    'utils'
+]

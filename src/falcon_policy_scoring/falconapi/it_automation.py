@@ -113,18 +113,18 @@ def _fetch_policies_by_ids(falcon, policy_ids: List[str], batch_size: int = 100,
         weblink = "https://www.falconpy.io/Service-Collections/IT-Automation.html#itautomationgetpolicies"
         is_permission_error, assist_msg = check_scope_permission_error(get_response, 'ITAutomationGetPolicies', weblink)
         if is_permission_error:
-                error_msg = "Failed to fetch IT automation policies batch: %s"
-                logging.error(error_msg, get_response.get('body', {}))
-                logging.warning(assist_msg)
-                continue
+            error_msg = "Failed to fetch IT automation policies batch: %s"
+            logging.error(error_msg, get_response.get('body', {}))
+            logging.warning(assist_msg)
+            continue
 
-            if get_response['status_code'] == 200:
-                batch_policies = get_response['body'].get('resources', [])
-                all_policies.extend(batch_policies)
-                if log_level == 'info':
-                    logging.info("Fetched %s policies in this batch", len(batch_policies))
-            else:
-                logging.error("Failed to fetch IT automation policies batch: %s", get_response.get('body', {}))
+        if get_response['status_code'] == 200:
+            batch_policies = get_response['body'].get('resources', [])
+            all_policies.extend(batch_policies)
+            if log_level == 'info':
+                logging.info("Fetched %s policies in this batch", len(batch_policies))
+        else:
+            logging.error("Failed to fetch IT automation policies batch: %s", get_response.get('body', {}))
 
 
 def query_combined_it_automation_policies(falcon, limit: int = 500, offset: int = 0) -> Dict:
