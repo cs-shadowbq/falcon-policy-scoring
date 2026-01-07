@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "falcon-policy-scoring"
-version = "1.5.0"
+version = "1.6.0"
 description = "CrowdStrike Falcon policy analysis and grading tool"
 readme = "README.md"
 requires-python = ">=3.8"
