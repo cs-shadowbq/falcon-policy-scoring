@@ -119,6 +119,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Allow test fixture .env files
+!tests/fixtures/env_files/*.env
+
 # Rope project settings
 .ropeproject
 
