@@ -1,0 +1,376 @@
+"""Integration workflow tests.
+
+These tests verify that multiple components work together correctly:
+- CLI operations → data fetcher → database adapter
+- FalconAPI → operations → grading engine
+- Full workflows: fetch hosts → fetch policies → grade → export
+
+External APIs (CrowdStrike Falcon) are still mocked, but we test real
+integration between internal components.
+
+Mark: @pytest.mark.integration
+"""
+import pytest
+import tempfile
+import shutil
+from pathlib import Path
+from unittest.mock import Mock, MagicMock, patch
+from rich.console import Console
+
+from falcon_policy_scoring.cli.operations import (
+    fetch_and_store_hosts,
+    fetch_and_grade_all_policies
+)
+from falcon_policy_scoring.cli.context import CliContext
+from falcon_policy_scoring.factories.database_factory import DatabaseFactory
+
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
+
+
+@pytest.fixture
+def temp_db_dir():
+    """Create a temporary directory for test databases."""
+    temp_dir = tempfile.mkdtemp()
+    yield temp_dir
+    shutil.rmtree(temp_dir)
+
+
+@pytest.fixture
+def test_config(temp_db_dir):
+    """Create test configuration."""
+    return {
+        'database': {
+            'type': 'sqlite',
+            'path': str(Path(temp_db_dir) / 'test.db')
+        },
+        'batch_size': 100,
+        'progress_threshold': 500
+    }
+
+
+@pytest.fixture
+def test_adapter(test_config):
+    """Create and connect a test database adapter."""
+    adapter = DatabaseFactory.create_adapter(test_config['database']['type'])
+    adapter.connect(test_config['database'])
+    return adapter
+
+
+@pytest.fixture
+def cli_context():
+    """Create a test CLI context."""
+    console = Console()
+    ctx = CliContext(console=console, verbose=False)
+    return ctx
+
+
+@pytest.fixture
+def mock_falcon():
+    """Create a mock Falcon API client."""
+    return MagicMock()
+
+
+class TestFetchHostsWorkflow:
+    """Test complete fetch hosts workflow across multiple components."""
+
+    def test_fetch_hosts_stores_in_database(self, cli_context, test_adapter, test_config, mock_falcon):
+        """Test that fetch_and_store_hosts properly stores data in database.
+        
+        Tests integration of:
+        - fetch_and_store_hosts (operations)
+        - Hosts API (mocked)
+        - data_fetcher
+        - database adapter
+        """
+        # Mock the Hosts API to return device IDs
+        with patch('falcon_policy_scoring.falconapi.hosts.Hosts') as MockHosts:
+            mock_hosts_api = MagicMock()
+            mock_hosts_api.get_device_ids.return_value = ['aid1', 'aid2', 'aid3']
+            MockHosts.return_value = mock_hosts_api
+
+            # Mock the device details fetching
+            with patch('falcon_policy_scoring.utils.host_data.process_host_batch') as mock_batch:
+                mock_batch.return_value = (3, 0)  # fetched 3, 0 errors
+
+                # Execute the workflow
+                result = fetch_and_store_hosts(
+                    falcon=mock_falcon,
+                    adapter=test_adapter,
+                    cid='test-cid',
+                    product_types=[],
+                    config=test_config,
+                    ctx=cli_context
+                )
+
+                # Verify workflow result
+                assert result['total_hosts'] == 3
+                assert result['fetched'] == 3
+                assert result['errors'] == 0
+
+                # Verify data was stored in database
+                stored_hosts = test_adapter.get_hosts('test-cid')
+                assert stored_hosts is not None
+                assert stored_hosts['total'] == 3
+                assert 'aid1' in stored_hosts['hosts']
+                assert 'aid2' in stored_hosts['hosts']
+                assert 'aid3' in stored_hosts['hosts']
+
+
+    def test_fetch_hosts_with_product_type_filtering(self, cli_context, test_adapter, test_config, mock_falcon):
+        """Test fetch workflow with product type filtering.
+        
+        Verifies that:
+        - Product type filter is passed through correctly
+        - FQL filter is constructed properly
+        - Data is stored correctly
+        """
+        with patch('falcon_policy_scoring.falconapi.hosts.Hosts') as MockHosts:
+            mock_hosts_api = MagicMock()
+            mock_hosts_api.get_device_ids.return_value = ['ws1', 'ws2']
+            MockHosts.return_value = mock_hosts_api
+
+            with patch('falcon_policy_scoring.utils.host_data.process_host_batch') as mock_batch:
+                mock_batch.return_value = (2, 0)
+
+                # Execute with Workstation filter
+                result = fetch_and_store_hosts(
+                    falcon=mock_falcon,
+                    adapter=test_adapter,
+                    cid='test-cid',
+                    product_types=['Workstation'],
+                    config=test_config,
+                    ctx=cli_context
+                )
+
+                # Verify the filter was passed correctly
+                call_kwargs = mock_hosts_api.get_device_ids.call_args[1]
+                assert 'product_types' in call_kwargs
+                assert call_kwargs['product_types'] == ['Workstation']
+
+                # Verify result
+                assert result['total_hosts'] == 2
+
+
+    def test_fetch_hosts_with_host_group_filtering(self, cli_context, test_adapter, test_config, mock_falcon):
+        """Test fetch workflow with host group filtering.
+        
+        Verifies integration between:
+        - HostGroup API (to resolve group names → device IDs)
+        - Hosts API (to query devices)
+        - Device ID intersection logic
+        """
+        with patch('falcon_policy_scoring.falconapi.host_group.HostGroup') as MockHostGroup:
+            mock_hg_api = MagicMock()
+            # Host group returns a subset of devices
+            mock_hg_api.get_device_ids_from_groups.return_value = ['aid1', 'aid2']
+            MockHostGroup.return_value = mock_hg_api
+
+            with patch('falcon_policy_scoring.falconapi.hosts.Hosts') as MockHosts:
+                mock_hosts_api = MagicMock()
+                # Hosts API returns all devices (will be intersected with host group)
+                mock_hosts_api.get_device_ids.return_value = ['aid1', 'aid2', 'aid3', 'aid4']
+                MockHosts.return_value = mock_hosts_api
+
+                with patch('falcon_policy_scoring.utils.host_data.process_host_batch') as mock_batch:
+                    mock_batch.return_value = (2, 0)
+
+                    # Execute with host group filter
+                    result = fetch_and_store_hosts(
+                        falcon=mock_falcon,
+                        adapter=test_adapter,
+                        cid='test-cid',
+                        product_types=[],
+                        config=test_config,
+                        ctx=cli_context,
+                        host_group_names=['production-servers']
+                    )
+
+                    # Verify host group API was called
+                    mock_hg_api.get_device_ids_from_groups.assert_called_once_with(['production-servers'])
+
+                    # Verify only filtered hosts were fetched
+                    assert result['total_hosts'] == 2
+
+
+class TestGradePoliciesWorkflow:
+    """Test policy grading workflow integration."""
+
+    def test_fetch_and_grade_prevention_policies(self, cli_context, test_adapter, mock_falcon):
+        """Test fetching and grading prevention policies.
+        
+        Tests integration of:
+        - fetch_and_grade_all_policies (operations)
+        - PreventionPolicies API (mocked)
+        - Grading engine
+        - Database adapter
+        """
+        # Mock prevention policy API response
+        mock_policy_response = {
+            'body': {
+                'resources': [
+                    {
+                        'id': 'policy-1',
+                        'name': 'Test Prevention Policy',
+                        'enabled': True,
+                        'prevention_settings': [
+                            {'id': 'detect', 'value': {'enabled': True, 'mode': 'DETECT'}},
+                            {'id': 'prevent', 'value': {'enabled': True, 'mode': 'PREVENT'}}
+                        ]
+                    }
+                ]
+            }
+        }
+
+        with patch('falcon_policy_scoring.utils.policy_registry.get_policy_registry') as mock_registry:
+            mock_registry.return_value = ['prevention']
+
+            # Mock the prevention policy API at the correct module level
+            with patch('falcon_policy_scoring.falconapi.policies.get_prevention_policies') as mock_get_policies:
+                mock_get_policies.return_value = mock_policy_response
+
+                # Execute the workflow
+                result = fetch_and_grade_all_policies(
+                    falcon=mock_falcon,
+                    adapter=test_adapter,
+                    cid='test-cid',
+                    policy_types=['prevention'],
+                    ctx=cli_context
+                )
+
+                # Verify policies were fetched and graded
+                assert 'prevention' in result
+                assert result['prevention']['total'] >= 1
+
+                # Verify data was stored in database
+                stored_policies = test_adapter.get_policies('prevention', 'test-cid')
+                assert stored_policies is not None
+                assert len(stored_policies['policies']) >= 1
+                assert stored_policies['policies'][0]['id'] == 'policy-1'
+
+                # Verify graded results were stored
+                graded = test_adapter.get_graded_policies('prevention', 'test-cid')
+                assert graded is not None
+                assert graded['total_policies'] >= 1
+
+
+class TestCompleteEndToEndWorkflow:
+    """Test complete end-to-end workflows."""
+
+    def test_fetch_hosts_then_grade_policies(self, cli_context, test_adapter, test_config, mock_falcon):
+        """Test complete workflow: fetch hosts → fetch policies → grade.
+        
+        This is closest to what a real user would do:
+        1. Fetch device list
+        2. Fetch host details
+        3. Fetch policies
+        4. Grade policies
+        5. Query results
+        
+        All components work together with persistent database state.
+        """
+        # Step 1: Fetch hosts
+        with patch('falcon_policy_scoring.falconapi.hosts.Hosts') as MockHosts:
+            mock_hosts_api = MagicMock()
+            mock_hosts_api.get_device_ids.return_value = ['aid1', 'aid2']
+            MockHosts.return_value = mock_hosts_api
+
+            with patch('falcon_policy_scoring.utils.host_data.process_host_batch') as mock_batch:
+                mock_batch.return_value = (2, 0)
+
+                fetch_result = fetch_and_store_hosts(
+                    falcon=mock_falcon,
+                    adapter=test_adapter,
+                    cid='test-cid',
+                    product_types=['Workstation'],
+                    config=test_config,
+                    ctx=cli_context
+                )
+
+                assert fetch_result['total_hosts'] == 2
+
+        # Verify hosts are in database
+        stored_hosts = test_adapter.get_hosts('test-cid')
+        assert stored_hosts['total'] == 2
+
+        # Step 2: Fetch and grade policies
+        mock_policy_response = {
+            'body': {
+                'resources': [
+                    {
+                        'id': 'policy-1',
+                        'name': 'Production Policy',
+                        'enabled': True,
+                        'prevention_settings': []
+                    }
+                ]
+            }
+        }
+
+        with patch('falcon_policy_scoring.utils.policy_registry.get_policy_registry') as mock_registry:
+            mock_registry.return_value = ['prevention']
+
+            with patch('falcon_policy_scoring.falconapi.policies.get_prevention_policies') as mock_get_policies:
+                mock_get_policies.return_value = mock_policy_response
+
+                grade_result = fetch_and_grade_all_policies(
+                    falcon=mock_falcon,
+                    adapter=test_adapter,
+                    cid='test-cid',
+                    policy_types=['prevention'],
+                    ctx=cli_context
+                )
+
+                assert 'prevention' in grade_result
+
+        # Verify complete state in database
+        # 1. Hosts are still there
+        hosts = test_adapter.get_hosts('test-cid')
+        assert hosts['total'] == 2
+
+        # 2. Policies are stored
+        policies = test_adapter.get_policies('prevention', 'test-cid')
+        assert policies is not None
+        assert len(policies['policies']) >= 1
+
+        # 3. Graded policies are stored
+        graded = test_adapter.get_graded_policies('prevention', 'test-cid')
+        assert graded is not None
+
+        # This demonstrates that the entire workflow maintains
+        # persistent state across operations
+
+
+class TestErrorPropagation:
+    """Test that errors propagate correctly through integration layers."""
+
+    def test_host_group_error_propagates(self, cli_context, test_adapter, test_config, mock_falcon):
+        """Test that host group API errors propagate correctly."""
+        with patch('falcon_policy_scoring.falconapi.host_group.HostGroup') as MockHostGroup:
+            mock_hg_api = MagicMock()
+            # Simulate host group API error
+            mock_hg_api.get_device_ids_from_groups.side_effect = ValueError("Host group not found: nonexistent")
+            MockHostGroup.return_value = mock_hg_api
+
+            # Error should propagate up
+            with pytest.raises(ValueError, match="Host group not found"):
+                fetch_and_store_hosts(
+                    falcon=mock_falcon,
+                    adapter=test_adapter,
+                    cid='test-cid',
+                    product_types=[],
+                    config=test_config,
+                    ctx=cli_context,
+                    host_group_names=['nonexistent']
+                )
+
+    def test_database_error_propagates(self, cli_context, mock_falcon):
+        """Test that database errors propagate correctly."""
+        # Create adapter with invalid config (should cause error)
+        bad_adapter = DatabaseFactory.create_adapter('sqlite')
+        bad_config = {'path': '/nonexistent/path/to/database.db'}
+
+        # Should raise error when trying to connect
+        with pytest.raises(Exception):  # Could be various exceptions
+            bad_adapter.connect(bad_config)

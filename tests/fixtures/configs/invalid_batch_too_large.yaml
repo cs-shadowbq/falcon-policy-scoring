@@ -1,0 +1,11 @@
+# Invalid configuration - batch size exceeds maximum
+
+db:
+  type: sqlite
+
+sqlite:
+  path: ./test_data/invalid.sqlite
+
+host_fetching:
+  batch_size: 150 # Invalid: exceeds max of 100
+  progress_threshold: 500

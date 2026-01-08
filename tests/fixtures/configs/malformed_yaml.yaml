@@ -1,0 +1,7 @@
+# Invalid configuration - malformed YAML syntax
+
+db:
+  type: sqlite
+  invalid indentation
+sqlite:
+path: ./test_data/broken.sqlite

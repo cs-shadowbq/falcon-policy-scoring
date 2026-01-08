@@ -5,9 +5,19 @@ help:
 	@echo "  clean                    Clean build artifacts"
 	@echo "  docs                     Generate documentation"
 	@echo "  docs-serve               Serve documentation on http://localhost:8088"
-	@echo "  test                     Run tests"
-	@echo "  test-coverage            Run tests with coverage report"
-	@echo "  test-coverage-serve      Run tests with coverage report http://localhost:8089"
+	@echo ""
+	@echo "Testing Targets:"
+	@echo "  test                     Run all tests (unit + integration, excludes E2E)"
+	@echo "  test-unit                Run only unit tests"
+	@echo "  test-integration         Run only integration tests"
+	@echo "  test-e2e-record          Record E2E tests with real API (requires credentials)"
+	@echo "  test-e2e-replay          Replay E2E tests from VCR cassettes (no credentials)"
+	@echo "  test-failed              Re-run only previously failed tests"
+	@echo "  test-coverage            Run tests with coverage report (excludes E2E)"
+	@echo "  test-coverage-serve      Run coverage + serve report at http://localhost:8089"
+	@echo "  clean-test               Clean test artifacts and cache"
+	@echo ""
+	@echo "Development Targets:"
 	@echo "  workflows                Run similar GitHub workflows locally"
 	@echo "  install                  Install all dependencies"
 	@echo "  requirements             Generate requirements.txt files from pyproject.toml"
@@ -54,20 +64,56 @@ docs-serves:
 	@echo "Serving documentation on localhost port 8088..."
 	python3 -m http.server 8088 --directory docs/_build/html
 
+# Testing targets
+# Note: E2E tests are excluded by default and must be explicitly run
+# E2E recording requires real CrowdStrike Falcon API credentials
+
 test:
-	@echo "Running tests..."
-	pip install -e ".[test]"
-	pytest --tb=short --disable-warnings -q tests
+	@echo "Running all tests (unit + integration, excluding E2E)..."
+	@pip install -e ".[test]" >/dev/null 2>&1
+	pytest tests/ -m "not e2e" --tb=short -q
+
+test-unit:
+	@echo "Running unit tests only..."
+	@pip install -e ".[test]" >/dev/null 2>&1
+	pytest tests/ -m unit --tb=short -q
+
+test-integration:
+	@echo "Running integration tests only..."
+	@pip install -e ".[test]" >/dev/null 2>&1
+	pytest tests/ -m integration --tb=short -q
+
+test-e2e-record:
+	@echo "Recording E2E tests with real API (requires credentials)..."
+	@echo "Note: Set FALCON_CLIENT_ID, FALCON_CLIENT_SECRET, FALCON_BASE_URL"
+	@pip install -e ".[test]" >/dev/null 2>&1
+	pytest tests/test_e2e_smoke.py -m e2e --vcr-record=all --tb=short -v
+
+test-e2e-replay:
+	@echo "Replaying E2E tests from VCR cassettes (no credentials needed)..."
+	@pip install -e ".[test]" >/dev/null 2>&1
+	pytest tests/test_e2e_smoke.py -m e2e --vcr-record=none --tb=short -v
+
+test-failed:
+	@echo "Re-running only failed tests..."
+	@pip install -e ".[test]" >/dev/null 2>&1
+	pytest --lf --tb=short -v
 
 test-coverage:
-	@echo "Running tests with coverage..."
-	pip install -e ".[test]"
-	pytest --tb=short --disable-warnings -q tests --cov=src/falcon_policy_scoring --cov-report=html
+	@echo "Running tests with coverage (excluding E2E)..."
+	@pip install -e ".[test]" >/dev/null 2>&1
+	pytest tests/ -m "not e2e" --tb=short -q --cov=src/falcon_policy_scoring --cov-report=html --cov-report=term
 
 test-coverage-serve:
-	$(MAKE) test-coverage
+	@$(MAKE) test-coverage
 	@echo "Serving coverage report at http://localhost:8089 ..."
 	python3 -m http.server 8089 --directory htmlcov
+
+clean-test:
+	@echo "Cleaning test artifacts..."
+	@rm -rf .pytest_cache htmlcov .coverage
+	@find tests -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@echo "Test artifacts cleaned"
 
 workflows:
 	@echo "Running all GitHub workflows locally..."

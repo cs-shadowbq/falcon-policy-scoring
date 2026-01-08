@@ -1,0 +1,11 @@
+# Invalid configuration - negative batch size
+
+db:
+  type: sqlite
+
+sqlite:
+  path: ./test_data/invalid.sqlite
+
+host_fetching:
+  batch_size: -10 # Invalid: negative value
+  progress_threshold: 500

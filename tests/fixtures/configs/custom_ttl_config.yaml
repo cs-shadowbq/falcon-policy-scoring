@@ -1,0 +1,21 @@
+# Configuration with custom TTL values
+
+db:
+  type: sqlite
+
+sqlite:
+  path: ./test_data/custom_ttl.sqlite
+
+ttl:
+  default: 1800
+  hosts: 900
+  host_records: 1800
+  policies:
+    prevention_policy: 3600
+    firewall_policy: 3600
+    sensor_update_policy: 1800
+    content_policy: 1800
+
+host_fetching:
+  batch_size: 200
+  progress_threshold: 1000
