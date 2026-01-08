@@ -1,0 +1,8 @@
+# Minimal valid configuration
+# Only essential fields are specified
+
+db:
+  type: sqlite
+
+sqlite:
+  path: ./test_data/minimal.sqlite

@@ -1,0 +1,85 @@
+# Maximal configuration with all possible settings
+# Every available option is specified
+
+db:
+  type: sqlite
+
+tiny_db:
+  path: ./test_data/maximal.json
+
+sqlite:
+  path: ./test_data/maximal.sqlite
+
+ttl:
+  default: 1200
+  hosts: 450
+  host_records: 900
+  policies:
+    prevention_policy: 900
+    devicecontrol_policy: 900
+    device_control_policies: 900
+    device_control_policy_settings: 7200
+    firewall_policy: 900
+    firewall_policy_containers: 7200
+    firewall_rule_groups: 7200
+    firewall_rules: 7200
+    sensor_update_policy: 900
+    content_policy: 900
+    rtr_policy: 900
+    it_automation_policies: 900
+
+falcon_credentials:
+  client_id: test_client_id_maximal
+  client_secret: test_client_secret_maximal
+  base_url: US1
+  prefix: "FALCON_"
+  metadata:
+    include_client_source: true
+    include_client_hash: true
+    include_client_id: true
+
+host_fetching:
+  batch_size: 50
+  progress_threshold: 250
+  include_zta: true
+
+logging:
+  file: "logs/maximal_app.log"
+  api: "logs/maximal_api.log"
+  level: "DEBUG"
+
+daemon:
+  schedules:
+    fetch_and_grade: "0 */1 * * *" # Every hour
+    cleanup: "0 3 * * *" # Daily at 3 AM
+    metrics: "*/10 * * * *" # Every 10 minutes
+
+  check_interval: 30
+
+  policy_types:
+    - prevention
+    - sensor-update
+    - content-update
+    - firewall
+    - device-control
+    - it-automation
+
+  product_types:
+    - Workstation
+    - Server
+    - Domain Controller
+
+  rate_limit:
+    requests_per_second: 15.0
+    requests_per_minute: 750
+    burst_size: 30
+    retry_attempts: 10
+
+  output:
+    compress: true
+    max_age_days: 60
+    max_files_per_type: 200
+
+  health_check:
+    enabled: true
+    port: 9090

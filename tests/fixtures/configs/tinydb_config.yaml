@@ -1,0 +1,14 @@
+# Configuration with TinyDB instead of SQLite
+
+db:
+  type: tiny_db
+
+tiny_db:
+  path: ./test_data/tinydb_test.json
+
+host_fetching:
+  batch_size: 75
+  progress_threshold: 400
+
+logging:
+  level: "WARNING"

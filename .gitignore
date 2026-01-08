@@ -148,8 +148,24 @@ docs/source
 TODO.md 
 results.json
 
-# Do not store test data in version control
-fixtures/
+
+# Allow test fixtures/configs
+!tests/fixtures/
+!tests/fixtures/configs/
+!tests/fixtures/configs/*.yaml
 
 output/*.json
 output/schemas/*.schema.json
+
+# Test VCR cassettes - contain sensitive API data, do not commit
+tests/*/vcr_cassette*/
+*.cassette.yaml
+*.cassette.json
+
+
+# Test coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/

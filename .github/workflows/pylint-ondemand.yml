@@ -13,23 +13,26 @@ jobs:
     permissions:
       contents: read
     steps:
-    - uses: actions/checkout@v6
-      with:
-        persist-credentials: false
-    
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.14'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip==24.0
-        python -m pip install pylint
-        pip install -e ".[dev,test]"
-    
-    - name: Lint package source with pylint
-      run: |
-        # exit-zero treats all errors as warnings.
-        pylint src/falcon_policy_scoring --disable=R0801,C0411,C0301,C0413,C0415 --exit-zero
-    
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip==24.0
+          python -m pip install pylint
+          pip install -e ".[dev,test]"
+
+      - name: Lint package source with pylint
+        run: |
+          # exit-zero treats all errors as warnings.
+          pylint src/falcon_policy_scoring --disable=R0801,C0411,C0301,C0413,C0415 --exit-zero
+
+      - name: Lint Summary
+        run: |
+          echo "✅ Pylint code quality check completed"

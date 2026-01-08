@@ -1,0 +1,8 @@
+# Invalid configuration - missing db section
+# Should fail validation
+
+host_fetching:
+  batch_size: 100
+
+logging:
+  level: "INFO"

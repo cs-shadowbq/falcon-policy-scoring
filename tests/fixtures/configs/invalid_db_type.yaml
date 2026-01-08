@@ -1,0 +1,7 @@
+# Invalid configuration - unsupported db type
+
+db:
+  type: invalid_db_type
+
+sqlite:
+  path: ./test_data/invalid.sqlite

@@ -1,0 +1,10 @@
+# Invalid configuration - invalid log level
+
+db:
+  type: sqlite
+
+sqlite:
+  path: ./test_data/invalid.sqlite
+
+logging:
+  level: "INVALID_LEVEL"
