@@ -6,18 +6,30 @@ Shared between CLI and daemon modules.
 from typing import List, Dict, Optional
 
 
-def matches_status_filter(passed: bool, status_filter: Optional[str]) -> bool:
+def matches_status_filter(policy: Dict, status_filter: Optional[str]) -> bool:
     """Check if policy matches status filter.
 
     Args:
-        passed: Whether the policy passed grading
-        status_filter: Filter string ('passed', 'failed', or None)
+        policy: Policy dictionary with grading_status and passed fields
+        status_filter: Filter string ('passed', 'failed', 'ungradable', or None)
 
     Returns:
         True if matches filter, False otherwise
     """
     if not status_filter:
         return True
+
+    grading_status = policy.get('grading_status', 'graded')
+
+    # Handle ungradable filter
+    if status_filter == 'ungradable':
+        return grading_status == 'ungradable'
+
+    # For passed/failed filters, only consider graded policies
+    if grading_status != 'graded':
+        return False
+
+    passed = policy.get('passed', False)
     return (status_filter == 'passed' and passed) or (status_filter == 'failed' and not passed)
 
 
@@ -59,7 +71,7 @@ def filter_policies(
             continue
 
         # Apply status filter
-        if status_filter and not matches_status_filter(policy.get('passed', False), status_filter):
+        if status_filter and not matches_status_filter(policy, status_filter):
             continue
 
         filtered.append(policy)

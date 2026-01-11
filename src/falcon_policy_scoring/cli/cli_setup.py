@@ -5,6 +5,7 @@ from typing import Tuple
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from falconpy import APIHarnessV2
+from falcon_policy_scoring import __version__, __author__, __maintainers__, __license__
 from falcon_policy_scoring.utils.config import read_config_from_yaml
 from falcon_policy_scoring.utils.logger import setup_logging
 from falcon_policy_scoring.factories.database_factory import DatabaseFactory
@@ -103,6 +104,18 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
+    # Version argument
+    version_text = f'%(prog)s {__version__}\nAuthor: {__author__}\nLicense: {__license__}'
+    if __maintainers__:
+        maintainer_names = [m.get('name', 'unknown') if isinstance(m, dict) else str(m) for m in __maintainers__]
+        version_text += f'\nMaintainers: {", ".join(maintainer_names)}'
+
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=version_text
+    )
+
     # Global arguments - Connection Configuration
     parser.add_argument(
         "-c", "--config",
@@ -125,7 +138,7 @@ def parse_arguments() -> argparse.Namespace:
     # Global arguments - Output Options
     parser.add_argument(
         "--output-format",
-        choices=['text', 'json'],
+        choices=['text', 'json', 'csv'],
         default='text',
         help="Output format (default: text)"
     )
@@ -195,7 +208,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     policies_parser.add_argument(
         '-s', '--status',
-        choices=['passed', 'failed'],
+        choices=['passed', 'failed', 'ungradable'],
         help='Filter by grading status'
     )
     policies_parser.add_argument(
@@ -340,9 +353,9 @@ def load_configuration(args, ctx) -> dict:
         setup_logging(config, worker_name="policy-audit")
         return config
     except FileNotFoundError as e:
-        raise ConfigurationError(f"Configuration file not found: {e}")
+        raise ConfigurationError(f"Configuration file not found: {e}") from e
     except Exception as e:
-        raise ConfigurationError(f"Failed to load configuration: {e}")
+        raise ConfigurationError(f"Failed to load configuration: {e}") from e
 
 
 def build_api_credentials(args, config, required: bool = True) -> dict:
@@ -440,7 +453,7 @@ def setup_database(config, ctx):
         adapter.connect(config[db_type])
         return adapter
     except Exception as e:
-        raise DatabaseError(f"Failed to connect to database: {e}")
+        raise DatabaseError(f"Failed to connect to database: {e}") from e
 
 
 def setup_falcon_api(apicreds, ctx) -> Tuple[APIHarnessV2, str]:
@@ -462,7 +475,7 @@ def setup_falcon_api(apicreds, ctx) -> Tuple[APIHarnessV2, str]:
         cid = get_cid(falcon)
         return falcon, cid
     except Exception as e:
-        raise ApiConnectionError(f"Failed to connect to CrowdStrike API: {e}")
+        raise ApiConnectionError(f"Failed to connect to CrowdStrike API: {e}") from e
 
 
 def get_or_fetch_cid(adapter, apicreds, fetch_required, ctx):
@@ -501,7 +514,7 @@ def get_or_fetch_cid(adapter, apicreds, fetch_required, ctx):
             adapter.put_cid(cid, base_url)
             return falcon, cid
         except Exception as e:
-            raise ApiConnectionError(f"Failed to connect to CrowdStrike API: {e}")
+            raise ApiConnectionError(f"Failed to connect to CrowdStrike API: {e}") from e
 
     return None, cached_cid
 

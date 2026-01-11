@@ -84,7 +84,11 @@ def generate_host_details_schema() -> dict:
                     },
                     "failed_policies": {
                         "type": "integer",
-                        "description": "Number of policies that failed grading"
+                        "description": "Number of policies that failed grading (excludes ungradable)"
+                    },
+                    "ungradable_policies": {
+                        "type": "integer",
+                        "description": "Number of policies that could not be graded"
                     },
                     "overall_score": {
                         "type": "number",
@@ -136,7 +140,11 @@ def generate_host_details_schema() -> dict:
                             },
                             "failed_policies": {
                                 "type": "integer",
-                                "description": "Policies that failed grading"
+                                "description": "Policies that failed grading (excludes ungradable)"
+                            },
+                            "ungradable_policies": {
+                                "type": "integer",
+                                "description": "Policies that could not be graded"
                             },
                             "score_percentage": {
                                 "type": "number",
@@ -163,8 +171,17 @@ def generate_host_details_schema() -> dict:
                                             "description": "Platform the policy applies to"
                                         },
                                         "passed": {
-                                            "type": "boolean",
-                                            "description": "Whether the policy passed grading"
+                                            "type": ["boolean", "null"],
+                                            "description": "Whether the policy passed grading (null if ungradable)"
+                                        },
+                                        "grading_status": {
+                                            "type": "string",
+                                            "enum": ["graded", "ungradable"],
+                                            "description": "Indicates if policy was graded or ungradable"
+                                        },
+                                        "ungradable_reason": {
+                                            "type": "string",
+                                            "description": "Reason policy could not be graded (e.g., 'no_platform_config')"
                                         },
                                         "checks_count": {
                                             "type": "integer",

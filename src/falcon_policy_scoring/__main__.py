@@ -17,6 +17,25 @@ import sys
 from pathlib import Path
 
 
+def _handle_error(error, error_type, ctx, exit_code=1):
+    """Handle error reporting for both JSON and console output modes."""
+    if ctx.json_output_mode:
+        print(f'{{"error": "{error_type}", "message": "{str(error)}"}}')
+    else:
+        ctx.console.print(f"[bold red]{error_type}:[/bold red] {error}")
+        if ctx.verbose and hasattr(error, '__traceback__'):
+            import traceback
+            ctx.console.print(traceback.format_exc())
+    sys.exit(exit_code)
+
+
+def _handle_keyboard_interrupt(ctx):
+    """Handle KeyboardInterrupt (Ctrl+C) gracefully."""
+    if not ctx.json_output_mode:
+        ctx.console.print("\n[yellow]Operation cancelled by user[/yellow]")
+    sys.exit(130)
+
+
 def main():
     """Main CLI entry point - orchestrates the policy audit workflow."""
     # Parse command line arguments
@@ -131,6 +150,13 @@ def _run_daemon_mode(args):
     from falcon_policy_scoring.utils.config import read_config_from_yaml
     from falcon_policy_scoring.utils.logger import setup_logging
 
+    # Create minimal context for error handling
+    ctx = CliContext(
+        console=Console(),
+        verbose=args.verbose,
+        json_output_mode=False  # Daemon mode doesn't support JSON output
+    )
+
     try:
         # Setup logging for daemon mode
         config = read_config_from_yaml(args.config)
@@ -152,36 +178,29 @@ def _run_daemon_mode(args):
         daemon = DaemonRunner(args.config, str(output_dir), immediate=args.immediate)
         daemon.initialize()
 
-        console = Console()
-        console.print("[bold green]Daemon started[/bold green]")
-        console.print(f"Config: {args.config}")
-        console.print(f"Output: {output_dir}")
+        ctx.console.print("[bold green]Daemon started[/bold green]")
+        ctx.console.print(f"Config: {args.config}")
+        ctx.console.print(f"Output: {output_dir}")
 
         # Show health check URL only if enabled
         health_check_config = config.get('daemon', {}).get('health_check', {})
         if health_check_config.get('enabled', True):
             health_port = health_check_config.get('port', 8088)
-            console.print(f"Health check: http://localhost:{health_port}/health")
+            ctx.console.print(f"Health check: http://localhost:{health_port}/health")
         else:
-            console.print("Health check: [dim]disabled[/dim]")
+            ctx.console.print("Health check: [dim]disabled[/dim]")
 
-        console.print("\n[yellow]Press Ctrl+C to stop[/yellow]\n")
+        ctx.console.print("\n[yellow]Press Ctrl+C to stop[/yellow]\n")
 
         daemon.run()
         sys.exit(0)
 
     except KeyboardInterrupt:
-        console = Console()
-        console.print("\n[yellow]Daemon stopped by user[/yellow]")
+        ctx.console.print("\n[yellow]Daemon stopped by user[/yellow]")
         sys.exit(0)
 
-    except Exception as e:
-        console = Console()
-        console.print(f"[bold red]Daemon Error:[/bold red] {e}")
-        if args.verbose:
-            import traceback
-            console.print(traceback.format_exc())
-        sys.exit(1)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        _handle_error(e, "Daemon Error", ctx)
 
 
 def _run_regrade_mode(args, ctx):
@@ -194,40 +213,19 @@ def _run_regrade_mode(args, ctx):
         handle_regrade_operations(ctx.adapter, ctx.cid, args, ctx)
 
     except ConfigurationError as e:
-        if ctx.json_output_mode:
-            print(f'{{"error": "Configuration error", "message": "{str(e)}"}}')
-        else:
-            ctx.console.print(f"[bold red]Configuration Error:[/bold red] {e}")
-        sys.exit(1)
+        _handle_error(e, "Configuration Error", ctx)
 
     except DatabaseError as e:
-        if ctx.json_output_mode:
-            print(f'{{"error": "Database error", "message": "{str(e)}"}}')
-        else:
-            ctx.console.print(f"[bold red]Database Error:[/bold red] {e}")
-        sys.exit(1)
+        _handle_error(e, "Database Error", ctx)
 
     except CliError as e:
-        if ctx.json_output_mode:
-            print(f'{{"error": "CLI error", "message": "{str(e)}"}}')
-        else:
-            ctx.console.print(f"[bold red]Error:[/bold red] {e}")
-        sys.exit(1)
+        _handle_error(e, "Error", ctx)
 
     except KeyboardInterrupt:
-        if not ctx.json_output_mode:
-            ctx.console.print("\n[yellow]Operation cancelled by user[/yellow]")
-        sys.exit(130)
+        _handle_keyboard_interrupt(ctx)
 
-    except Exception as e:
-        if ctx.json_output_mode:
-            print(f'{{"error": "Unexpected error", "message": "{str(e)}"}}')
-        else:
-            ctx.console.print(f"[bold red]Unexpected Error:[/bold red] {e}")
-            if ctx.verbose:
-                import traceback
-                ctx.console.print(traceback.format_exc())
-        sys.exit(1)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        _handle_error(e, "Unexpected Error", ctx)
 
 
 def _run_legacy_mode(args, ctx):
@@ -254,47 +252,22 @@ def _run_legacy_mode(args, ctx):
         output_strategy.output(data, ctx)
 
     except ConfigurationError as e:
-        if ctx.json_output_mode:
-            print(f'{{"error": "Configuration error", "message": "{str(e)}"}}')
-        else:
-            ctx.console.print(f"[bold red]Configuration Error:[/bold red] {e}")
-        sys.exit(1)
+        _handle_error(e, "Configuration Error", ctx)
 
     except ApiConnectionError as e:
-        if ctx.json_output_mode:
-            print(f'{{"error": "API connection error", "message": "{str(e)}"}}')
-        else:
-            ctx.console.print(f"[bold red]API Connection Error:[/bold red] {e}")
-        sys.exit(1)
+        _handle_error(e, "API Connection Error", ctx)
 
     except DatabaseError as e:
-        if ctx.json_output_mode:
-            print(f'{{"error": "Database error", "message": "{str(e)}"}}')
-        else:
-            ctx.console.print(f"[bold red]Database Error:[/bold red] {e}")
-        sys.exit(1)
+        _handle_error(e, "Database Error", ctx)
 
     except CliError as e:
-        if ctx.json_output_mode:
-            print(f'{{"error": "CLI error", "message": "{str(e)}"}}')
-        else:
-            ctx.console.print(f"[bold red]Error:[/bold red] {e}")
-        sys.exit(1)
+        _handle_error(e, "Error", ctx)
 
     except KeyboardInterrupt:
-        if not ctx.json_output_mode:
-            ctx.console.print("\n[yellow]Operation cancelled by user[/yellow]")
-        sys.exit(130)
+        _handle_keyboard_interrupt(ctx)
 
-    except Exception as e:
-        if ctx.json_output_mode:
-            print(f'{{"error": "Unexpected error", "message": "{str(e)}"}}')
-        else:
-            ctx.console.print(f"[bold red]Unexpected Error:[/bold red] {e}")
-            if ctx.verbose:
-                import traceback
-                ctx.console.print(traceback.format_exc())
-        sys.exit(1)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        _handle_error(e, "Unexpected Error", ctx)
 
 
 if __name__ == "__main__":

@@ -26,21 +26,47 @@ For each setting in a policy, the tool performs a comparison. The type of compar
 
 When any setting in a policy fails its check, the entire policy fails. This strict approach ensures that a single misconfigured setting does not go unnoticed because other settings passed. A policy must pass all checks to receive a passing grade.
 
+## Policy Status Values
+
+After evaluation, each policy receives a status that indicates its grading outcome. Understanding these status values helps you interpret results and identify what action to take.
+
+**PASSED** indicates a policy was successfully evaluated against grading standards and met all requirements. Every setting in the policy matched or exceeded the minimum acceptable values defined in the grading configuration. A passed policy means hosts using it meet your security standards for that policy type.
+
+**FAILED** indicates a policy was successfully evaluated but did not meet one or more requirements. At least one setting fell short of the minimum acceptable value. The tool provides detailed information about which specific settings failed so you can identify what needs correction. A failed policy affects every host that uses it.
+
+**UNGRADABLE** indicates the tool could not evaluate the policy against grading standards. This status occurs when something prevents grading from happening. The most common reason is missing grading configuration for a policy's platform. For example, if you have policies for Windows_Legacy or mobile platforms like Android or iOS, but no grading standards defined for those platforms, those policies become ungradable. Other reasons include unlicensed product features or schema incompatibilities. The tool records the specific reason why each policy is ungradable.
+
+**NOT GRADED** indicates the policy exists in your environment but the tool has not yet evaluated it. This status appears when you fetch policies but have not run the grading process, or when you add new policies between grading runs. It differs from ungradable because no grading attempt has occurred yet. Running the grading process changes this status to either passed, failed, or ungradable.
+
+**NO POLICY ASSIGNED** appears at the host level rather than the policy level. It indicates a host does not have a policy of a particular type assigned. For example, if a host has no firewall policy, the firewall status shows as no policy assigned. This status highlights gaps in policy coverage rather than problems with policy configuration.
+
+Ungradable policies require attention even though they did not technically fail evaluation. A policy that cannot be graded cannot be verified as meeting security standards. This creates a blind spot in your security posture. Common remediation approaches include defining grading standards for previously unsupported platforms, removing policies for obsolete platforms, or documenting exceptions for platforms that legitimately cannot be graded.
+
+The tool treats ungradable policies strictly when assessing hosts. A host with any ungradable policy does not achieve passing status, even if all its other policies passed. This conservative approach ensures ungradable policies receive appropriate attention rather than being silently ignored. You can identify which policies are ungradable and why through the detailed grading results and logs.
+
 ## Assessing Hosts
 
 After grading all policies, the tool examines your hosts. Each computer in your environment has policies assigned to it that control its security behavior. The tool determines each host's compliance status by checking whether its assigned policies passed grading.
 
-A host fails if any of its assigned policies failed. This means a single weak policy affects every device that uses it. If a prevention policy fails grading and five hundred hosts use that policy, all five hundred hosts fail assessment. This ripple effect makes it easy to identify the scope of impact for any policy problem.
+A host passes only if all of its assigned policies have a status of passed. Any other policy status prevents the host from achieving passing status. This strict requirement means several conditions can cause a host to fail assessment.
+
+A host fails if any of its assigned policies failed grading. This means a single weak policy affects every device that uses it. If a prevention policy fails grading and five hundred hosts use that policy, all five hundred hosts fail assessment. This ripple effect makes it easy to identify the scope of impact for any policy problem.
+
+A host also fails to achieve passing status if any of its assigned policies are ungradable. Even though ungradable policies did not technically fail evaluation, they represent unverified security controls. The tool cannot confirm these policies meet standards, so hosts using them cannot be certified as passing. This conservative approach ensures ungradable policies receive appropriate attention.
+
+The tool tracks these conditions separately in host assessment results. You can see whether a host has failed policies, ungradable policies, or both. This visibility helps you understand whether remediation requires fixing policy configurations or addressing grading coverage gaps.
 
 The tool does not re-evaluate policies for each host. Policy grading happens once per policy, then that result applies to every host using the policy. This design is efficient and reflects the reality that policies are defined once and reused across many devices.
 
-## Understanding Failures
+## Understanding Failures and Ungradable Policies
 
-Failures flow upward through your security configuration. A single misconfigured setting causes the entire policy to fail. A single failed policy causes all hosts using it to fail. This cascading effect means you can trace any host failure back to specific policy failures and ultimately to specific setting failures.
+Problems flow upward through your security configuration. A single misconfigured setting causes the entire policy to fail. A single failed policy causes all hosts using it to fail. A single ungradable policy prevents all hosts using it from passing. This cascading effect means you can trace any host problem back to specific policy issues and ultimately to specific setting failures or grading gaps.
 
-The tool provides detailed information about failures at each level. You can see which settings failed in each policy. You can see which policies failed overall. You can see which hosts are affected by failed policies. This layered visibility helps you understand both the specific problem and its broader impact.
+The tool provides detailed information about problems at each level. You can see which settings failed in each policy. You can see which policies failed overall or are ungradable. You can see which hosts are affected by failed or ungradable policies. This layered visibility helps you understand both the specific problem and its broader impact.
 
 When you fix a failed setting in a policy, the next grading run will show that policy passing. All hosts using that policy will then show as passing as well, assuming their other assigned policies also pass. One fix can resolve failures across many hosts if those hosts share the same policy.
+
+When you address an ungradable policy, you have several remediation options. You can create grading standards for the policy's platform if it represents a legitimate platform you want to monitor. You can remove or deactivate policies for obsolete platforms that no longer require evaluation. You can document exceptions for special cases where grading is not applicable. The appropriate action depends on whether the ungradable policy represents a coverage gap or an expected exception.
 
 ## Scores and Percentages
 

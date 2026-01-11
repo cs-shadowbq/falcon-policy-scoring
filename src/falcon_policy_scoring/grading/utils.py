@@ -84,13 +84,12 @@ def get_setting_value_for_comparison(setting_value, setting_type):
         if isinstance(setting_value, dict):
             return setting_value
         return None
-    elif setting_type == 'toggle':
+    if setting_type == 'toggle':
         # Toggle settings might have 'enabled' or 'configured' keys
         if isinstance(setting_value, dict):
             return setting_value.get('enabled', False)
         return setting_value
-    else:
-        return setting_value
+    return setting_value
 
 
 def parse_sensor_build_value(settings):
@@ -191,295 +190,129 @@ def compare_ring_points(actual_ring, actual_delay, max_ring_points):
     return actual_points <= max_points
 
 
-def compare_firewall_policy_container(policy_container, requirements):
+def check_policy_enabled(result, policy_enabled, minimum_enabled):
     """
-    Compare firewall policy container settings against best practice requirements.
+    Check if policy enabled status meets minimum requirement and update result.
 
-    Policy containers contain the critical firewall settings:
-    - default_inbound: Should be DENY to block all inbound by default
-    - enforce: Should be true to actually enforce the policy
-    - test_mode: Should be false (not in test mode)
+    This is a common check across multiple policy graders. It increments the checks count,
+    and if the policy doesn't meet the minimum enabled requirement, it marks the result
+    as failed and appends a standardized failure entry.
 
     Args:
-        policy_container: The policy container object with settings
-        requirements: The policy requirements dict from grading config containing:
-                      - default_inbound: Expected value ('DENY')
-                      - enforce: Expected value (True)
-                      - test_mode: Expected value (False)
+        result: The grading result dict to update (modified in-place)
+        policy_enabled: Actual policy enabled status (bool)
+        minimum_enabled: Minimum required enabled status (bool)
 
     Returns:
-        dict: Comparison result with structure:
-              {
-                  'passed': bool,
-                  'failures': [list of failure dicts],
-                  'details': dict with container settings
-              }
+        dict: The modified result dict (for convenient assignment)
+
+    Side effects:
+        Updates result['checks_count'], and if failed also updates:
+        - result['failures_count']
+        - result['passed']
+        - result['setting_results']
     """
-    result = {
-        'passed': True,
-        'failures': [],
-        'details': {
-            'policy_id': policy_container.get('policy_id')
-        }
-    }
+    result['checks_count'] += 1
 
-    # Check default_inbound
-    expected_inbound = requirements.get('default_inbound', 'DENY')
-    actual_inbound = policy_container.get('default_inbound', '')
-    result['details']['default_inbound'] = {
-        'actual': actual_inbound,
-        'expected': expected_inbound
-    }
-    if actual_inbound != expected_inbound:
+    if minimum_enabled and not policy_enabled:
+        result['failures_count'] += 1
         result['passed'] = False
-        result['failures'].append({
-            'field': 'default_inbound',
-            'actual': actual_inbound,
-            'minimum': expected_inbound
-        })
-
-    # Check enforce
-    expected_enforce = requirements.get('enforce', True)
-    actual_enforce = policy_container.get('enforce', False)
-    result['details']['enforce'] = {
-        'actual': actual_enforce,
-        'expected': expected_enforce
-    }
-    if actual_enforce != expected_enforce:
-        result['passed'] = False
-        result['failures'].append({
-            'field': 'enforce',
-            'actual': str(actual_enforce),
-            'minimum': str(expected_enforce)
-        })
-
-    # Check test_mode
-    expected_test_mode = requirements.get('test_mode', False)
-    actual_test_mode = policy_container.get('test_mode', True)
-    result['details']['test_mode'] = {
-        'actual': actual_test_mode,
-        'expected': expected_test_mode
-    }
-    if actual_test_mode != expected_test_mode:
-        result['passed'] = False
-        result['failures'].append({
-            'field': 'test_mode',
-            'actual': str(actual_test_mode),
-            'minimum': str(expected_test_mode)
+        result['setting_results'].append({
+            'setting_id': 'enabled',
+            'setting_name': 'Policy Enabled',
+            'type': 'toggle',
+            'actual_value': policy_enabled,
+            'minimum_value': minimum_enabled,
+            'passed': False,
+            'failures': [{
+                'field': 'enabled',
+                'actual': policy_enabled,
+                'minimum': minimum_enabled
+            }]
         })
 
     return result
 
 
-def compare_device_control_policy(policy, settings, requirements):
+def find_platform_config(grading_config, platform_name, config_list_key,
+                         allow_all_fallback=False):
     """
-    Compare device control policy settings against best practice requirements.
+    Find platform-specific configuration from grading config.
 
-    Device control policies are graded based on:
-    - enabled: Policy must be enabled
-    - enforcement_mode: Should match configured requirement (e.g., MONITOR_ENFORCE)
-    - Device class actions: Specific classes should have BLOCK_ALL action
+    Searches through a list in grading_config to find matching platform entry.
+    Returns the matched entry, allowing caller to extract needed nested keys.
+    Platform name matching is always case-insensitive.
 
     Args:
-        policy: The policy object with top-level fields like 'enabled'
-        settings: The settings object containing enforcement_mode and classes
-        requirements: The policy requirements dict from grading config containing:
-                      - enabled: Expected value (True)
-                      - enforcement_mode: Expected value ('MONITOR_ENFORCE')
-                      - classes_requirements: Dict mapping class_id -> requirement dict
-                        - required_action: Single required action value
-                        - allowed_actions: List of allowed action values
+        grading_config: The grading configuration dict
+        platform_name: Platform name to search for
+        config_list_key: Key in grading_config containing list to search
+                        (e.g., 'prevention_policies', 'policies', 'platform_requirements')
+        allow_all_fallback: Whether to match 'all' as fallback (default: False)
 
     Returns:
-        dict: Comparison result with structure:
-              {
-                  'passed': bool,
-                  'failures': [list of failure dicts],
-                  'details': dict with policy settings
-              }
+        dict or None: Matched platform config entry, or None if not found
+
+    Examples:
+        >>> config = {'policies': [{'platform_name': 'Windows', ...}, {'platform_name': 'all', ...}]}
+        >>> find_platform_config(config, 'windows', 'policies')
+        {'platform_name': 'Windows', ...}
+        >>> find_platform_config(config, 'Linux', 'policies', allow_all_fallback=True)
+        {'platform_name': 'all', ...}
     """
-    result = {
-        'passed': True,
-        'failures': [],
-        'details': {
-            'policy_id': policy.get('id'),
-            'enabled': policy.get('enabled')
-        }
-    }
+    config_list = grading_config.get(config_list_key, [])
+    normalized_platform = platform_name.lower() if platform_name else None
 
-    # Check if policy is enabled
-    expected_enabled = requirements.get('enabled', True)
-    actual_enabled = policy.get('enabled', False)
-    result['details']['enabled'] = {
-        'actual': actual_enabled,
-        'expected': expected_enabled
-    }
-    if actual_enabled != expected_enabled:
-        result['passed'] = False
-        result['failures'].append({
-            'field': 'enabled',
-            'actual': str(actual_enabled),
-            'minimum': str(expected_enabled)
-        })
-
-    # If settings is None, we can't grade further
-    if settings is None:
-        result['passed'] = False
-        result['failures'].append({
-            'field': 'settings',
-            'actual': 'None',
-            'minimum': 'Settings object required'
-        })
-        return result
-
-    # Get settings requirements
-    settings_req = requirements.get('settings', {})
-
-    # Check enforcement_mode
-    if 'enforcement_mode' in settings_req:
-        expected_mode = settings_req['enforcement_mode']
-        actual_mode = settings.get('enforcement_mode', '')
-        result['details']['enforcement_mode'] = {
-            'actual': actual_mode,
-            'expected': expected_mode
-        }
-        if actual_mode != expected_mode:
-            result['passed'] = False
-            result['failures'].append({
-                'field': 'enforcement_mode',
-                'actual': actual_mode,
-                'minimum': expected_mode
-            })
-
-    # Check device classes
-    classes_req = settings_req.get('classes_requirements', {})
-    classes_list = settings.get('classes', [])
-    classes_map = {c['id']: c for c in classes_list}
-
-    result['details']['classes'] = {}
-
-    for class_id, req in classes_req.items():
-        actual_class = classes_map.get(class_id)
-
-        if not actual_class:
-            result['passed'] = False
-            result['failures'].append({
-                'field': f'class.{class_id}',
-                'actual': 'Missing',
-                'minimum': req
-            })
-            result['details']['classes'][class_id] = {
-                'actual': 'Missing',
-                'expected': req
-            }
+    for entry in config_list:
+        entry_platform = entry.get('platform_name')
+        if not entry_platform:
             continue
 
-        actual_action = actual_class.get('action', '')
+        normalized_entry = entry_platform.lower()
 
-        # Check allowed_actions (list of acceptable values) vs required_action (single value)
-        if 'allowed_actions' in req:
-            allowed = req['allowed_actions']
-            result['details']['classes'][class_id] = {
-                'actual': actual_action,
-                'allowed': allowed
-            }
-            if actual_action not in allowed:
-                result['passed'] = False
-                result['failures'].append({
-                    'field': f'class.{class_id}',
-                    'actual': actual_action,
-                    'minimum': f"One of {allowed}"
-                })
-        elif 'required_action' in req:
-            required = req['required_action']
-            result['details']['classes'][class_id] = {
-                'actual': actual_action,
-                'expected': required
-            }
-            if actual_action != required:
-                result['passed'] = False
-                result['failures'].append({
-                    'field': f'class.{class_id}',
-                    'actual': actual_action,
-                    'minimum': required
-                })
+        # Check for exact match (case-insensitive)
+        if normalized_entry == normalized_platform:
+            return entry
 
-    return result
+        # Check for 'all' fallback if enabled
+        if allow_all_fallback and normalized_entry == 'all':
+            return entry
+
+    return None
 
 
-def compare_it_automation_policy(policy, requirements):
+def normalize_it_automation_config(grading_config):
     """
-    Compare IT automation policy against best practice requirements.
+    Transform IT automation grading config from flat structure to standard list format.
 
-    IT Automation policies are graded based on:
-    - is_enabled: Top-level policy enabled status (boolean)
-    - config.execution.enable_script_execution: Nested setting for script execution (boolean)
+    IT automation config uses platform names as top-level keys (Windows, Linux, Mac),
+    which differs from other policy configs that use lists. This normalizes the structure
+    so it can work with shared utilities like find_platform_config().
 
     Args:
-        policy: The policy object containing:
-                - is_enabled: bool
-                - config: dict with execution.enable_script_execution
-                - target: Platform (Windows, Linux, Mac)
-        requirements: The policy requirements dict from grading config containing:
-                      - is_enabled: Expected value (True)
-                      - config: dict with execution.enable_script_execution requirements
+        grading_config: IT automation grading config dict with structure:
+                       {"Windows": {...}, "Linux": {...}, "Mac": {...}}
 
     Returns:
-        dict: Comparison result with structure:
-              {
-                  'passed': bool,
-                  'failures': [list of failure dicts],
-                  'details': dict with policy settings
-              }
-    """
-    result = {
-        'passed': True,
-        'failures': [],
-        'details': {
-            'policy_id': policy.get('id'),
-            'policy_name': policy.get('name'),
-            'target': policy.get('target')
-        }
-    }
+        dict: Normalized config with structure:
+              {"platform_requirements": [
+                  {"platform_name": "Windows", "policy_requirements": {...}},
+                  {"platform_name": "Linux", "policy_requirements": {...}},
+                  {"platform_name": "Mac", "policy_requirements": {...}}
+              ]}
 
-    # Check if policy is enabled
-    expected_enabled = requirements.get('is_enabled', True)
-    actual_enabled = policy.get('is_enabled', False)
-    result['details']['is_enabled'] = {
-        'actual': actual_enabled,
-        'expected': expected_enabled
-    }
-    if actual_enabled != expected_enabled:
-        result['passed'] = False
-        result['failures'].append({
-            'field': 'is_enabled',
-            'actual': str(actual_enabled),
-            'minimum': str(expected_enabled)
+    Example:
+        >>> config = {"Windows": {"is_enabled": true, ...}, "Linux": {...}}
+        >>> normalized = normalize_it_automation_config(config)
+        >>> normalized['platform_requirements'][0]['platform_name']
+        'Windows'
+    """
+    platform_requirements = []
+
+    for platform_name, requirements in grading_config.items():
+        platform_requirements.append({
+            'platform_name': platform_name,
+            'policy_requirements': requirements
         })
 
-    # Check nested config.execution.enable_script_execution
-    config_req = requirements.get('config', {})
-    execution_req = config_req.get('execution', {})
-
-    if 'enable_script_execution' in execution_req:
-        expected_script_exec = execution_req['enable_script_execution']
-
-        # Navigate nested path: config -> execution -> enable_script_execution
-        config_actual = policy.get('config', {})
-        execution_actual = config_actual.get('execution', {})
-        actual_script_exec = execution_actual.get('enable_script_execution', False)
-
-        result['details']['enable_script_execution'] = {
-            'actual': actual_script_exec,
-            'expected': expected_script_exec
-        }
-
-        if actual_script_exec != expected_script_exec:
-            result['passed'] = False
-            result['failures'].append({
-                'field': 'config.execution.enable_script_execution',
-                'actual': str(actual_script_exec),
-                'minimum': str(expected_script_exec)
-            })
-
-    return result
+    return {'platform_requirements': platform_requirements}

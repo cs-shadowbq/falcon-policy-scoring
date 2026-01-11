@@ -118,6 +118,8 @@ def _fetch_policies_by_ids(falcon, policy_ids: List[str], batch_size: int = 100)
         else:
             logging.error("Failed to fetch IT automation policies batch: %s", get_response.get('body', {}))
 
+    return all_policies
+
 
 def query_combined_it_automation_policies(falcon, limit: int = 500, offset: int = 0) -> Dict:
     """
@@ -282,7 +284,7 @@ def fetch_it_automation_policies(falcon, db_adapter, cid: str, force_refresh: bo
             'total': len(all_policies)
         }
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Exception fetching IT automation policies: %s", e)
         import traceback
         traceback.print_exc()

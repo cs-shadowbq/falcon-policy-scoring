@@ -10,19 +10,50 @@ This ensures that security misconfigurations propagate correctly
 through the grading hierarchy.
 """
 
+from falcon_policy_scoring.utils.host_data import collect_host_data, calculate_host_stats
+from falcon_policy_scoring.utils.policy_helpers import get_policy_status
 import pytest
 from typing import Dict, List
 
-from falcon_policy_scoring.grading.engine import (
-    grade_prevention_policy,
-    grade_sensor_update_policy,
-    grade_firewall_policy,
-    grade_device_control_policy,
-    grade_content_update_policy,
-    grade_it_automation_policy,
+from falcon_policy_scoring.grading.results import (
+    grade_setting,
+    _create_empty_policy_result
 )
-from falcon_policy_scoring.utils.host_data import collect_host_data, calculate_host_stats
-from falcon_policy_scoring.utils.policy_helpers import get_policy_status
+from falcon_policy_scoring.grading.graders.prevention import (
+    grade_prevention_policy as _grade_prevention_policy
+)
+from falcon_policy_scoring.grading.graders.sensor_update import (
+    grade_sensor_update_policy as _grade_sensor_update_policy
+)
+from falcon_policy_scoring.grading.graders.firewall import (
+    grade_firewall_policy as _grade_firewall_policy
+)
+from falcon_policy_scoring.grading.graders.device_control import (
+    grade_device_control_policy
+)
+from falcon_policy_scoring.grading.graders.content_update import (
+    grade_content_update_policy as _grade_content_update_policy
+)
+from falcon_policy_scoring.grading.graders.it_automation import (
+    grade_it_automation_policy
+)
+
+# Wrappers for backward compatibility with test signatures
+def grade_prevention_policy(policy, grading_config):
+    return _grade_prevention_policy(
+        policy, grading_config, grade_setting, _create_empty_policy_result
+    )
+
+def grade_sensor_update_policy(policy, grading_config):
+    return _grade_sensor_update_policy(policy, grading_config, _create_empty_policy_result)
+
+def grade_firewall_policy(policy, policy_container, grading_config):
+    return _grade_firewall_policy(
+        policy, policy_container, grading_config, _create_empty_policy_result
+    )
+
+def grade_content_update_policy(policy, grading_config):
+    return _grade_content_update_policy(policy, grading_config, _create_empty_policy_result)
 
 
 @pytest.mark.unit

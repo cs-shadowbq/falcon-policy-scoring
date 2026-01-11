@@ -91,7 +91,7 @@ class DaemonRunner:
         except ConfigurationError as e:
             print(f"\033[91mConfiguration error: {e}\033[0m")
             logger.error("Configuration error: %s", e, exc_info=True)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"\033[91mFailed to reload configuration: {e}\033[0m")
             logger.error("Failed to reload configuration: %s", e, exc_info=True)
 
@@ -315,7 +315,7 @@ class DaemonRunner:
                 except GradingError as e:
                     logger.error("Grading error for %s policies: %s", policy_type, e)
                     run.api_errors += 1
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error("Failed to grade %s policies: %s", policy_type, e)
                     run.api_errors += 1
 
@@ -334,7 +334,7 @@ class DaemonRunner:
             self.metrics.complete_run(run, success=True)
             logger.info("Fetch and grade run completed successfully")
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Fetch and grade run failed: %s", e, exc_info=True)
             self.metrics.complete_run(run, success=False, error_message=str(e))
 
@@ -410,7 +410,7 @@ class DaemonRunner:
             logger.info("Host details report written successfully")
         except ReportGenerationError as e:
             logger.error("Report generation error: %s", e, exc_info=True)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Failed to write host details report: %s", e, exc_info=True)
 
     def _run_cleanup(self) -> None:
@@ -425,7 +425,7 @@ class DaemonRunner:
             deleted = self.json_writer.cleanup_old_files(max_age_days, max_files)
             logger.info("Cleanup complete: deleted %s files", deleted)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Cleanup failed: %s", e, exc_info=True)
 
     def _write_metrics(self) -> None:
@@ -443,7 +443,7 @@ class DaemonRunner:
 
             logger.debug("Metrics written")
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Failed to write metrics: %s", e, exc_info=True)
 
     def run(self) -> None:
@@ -458,14 +458,14 @@ class DaemonRunner:
                 try:
                     self._run_fetch_and_grade()
                     logger.info("Immediate run completed successfully")
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error("Immediate run failed: %s", e, exc_info=True)
 
             # Run scheduler (blocks until stopped)
             check_interval = self.config.get('daemon', {}).get('check_interval', 60)
             self.scheduler.run_forever(check_interval=check_interval)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Daemon error: %s", e, exc_info=True)
             raise
 
@@ -494,7 +494,7 @@ class DaemonRunner:
             print("Cleanup complete")
             logger.info("Cleanup complete")
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Error during cleanup: %s", e, exc_info=True)
 
 
@@ -518,7 +518,7 @@ def main(config_path: str, output_dir: str) -> int:
         logger.info("Daemon interrupted by user")
         return 130
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Daemon failed: %s", e, exc_info=True)
         return 1
 

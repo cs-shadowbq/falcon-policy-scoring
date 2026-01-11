@@ -20,7 +20,7 @@ def build_client_source_hash() -> Optional[str]:
         hostname = socket.gethostname()
         client_source_str = f"{username}:{hostname}"
         return hashlib.sha256(client_source_str.encode('utf-8')).hexdigest()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return None
 
 
@@ -40,7 +40,7 @@ def build_client_hash(client_id: str, client_secret: str) -> Optional[str]:
     try:
         client_hash_str = f"{client_id}:{client_secret}"
         return hashlib.sha256(client_hash_str.encode('utf-8')).hexdigest()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return None
 
 

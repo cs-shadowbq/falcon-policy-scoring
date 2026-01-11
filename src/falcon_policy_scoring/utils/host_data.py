@@ -102,6 +102,7 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
         statuses = [prevention_status, sensor_update_status, content_update_status,
                     firewall_status, device_control_status, it_automation_status]
         has_any_failed = any(s == "FAILED" for s in statuses)
+        has_any_ungradable = any(s == "UNGRADABLE" for s in statuses)
         all_policies_passed = all(s == "PASSED" for s in statuses)
 
         host_rows.append({
@@ -116,7 +117,8 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
             'it_automation_status': it_automation_status,
             'zta_assessment': zta_assessment,
             'all_passed': all_policies_passed,
-            'any_failed': has_any_failed
+            'any_failed': has_any_failed,
+            'has_ungradable': has_any_ungradable
         })
 
     return host_rows
@@ -153,7 +155,7 @@ def process_host_batch(falcon, adapter, batch: List[str]) -> tuple:
     Returns:
         Tuple of (fetched_count, error_count)
     """
-    from ..cli.constants import API_COMMAND_GET_DEVICE_DETAILS
+    from .constants import API_COMMAND_GET_DEVICE_DETAILS
 
     fetched_count = 0
     error_count = 0

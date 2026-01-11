@@ -69,26 +69,26 @@ class HealthCheck:
         class HealthCheckHandler(BaseHTTPRequestHandler):
             """HTTP request handler for health checks."""
 
-            def log_message(self, format, *args):
+            def log_message(self, format, *args):  # pylint: disable=redefined-builtin
                 """Override to use our logger."""
                 logger.info("Health check request: %s", format % args)
 
-            def do_GET(self):
+            def do_GET(self):  # pylint: disable=invalid-name
                 """Handle GET requests."""
                 try:
-                    if self.path == '/health' or self.path == '/healthz':
+                    if self.path in ('/health', '/healthz'):
                         self._handle_health()
-                    elif self.path == '/ready' or self.path == '/readiness':
+                    elif self.path in ('/ready', '/readiness'):
                         self._handle_readiness()
                     elif self.path == '/metrics':
                         self._handle_metrics()
                     else:
                         self.send_error(404, "Not Found")
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error("Error handling health check request: %s", e, exc_info=True)
                     try:
                         self.send_error(500, f"Internal Server Error: {str(e)}")
-                    except:
+                    except Exception:  # pylint: disable=broad-exception-caught
                         pass
 
             def _handle_health(self):
@@ -99,7 +99,7 @@ class HealthCheck:
                     response = {
                         'status': 'alive',
                         'timestamp': get_utc_iso_timestamp(),
-                        'uptime_seconds': (datetime.now() - health_check._started_at).total_seconds()
+                        'uptime_seconds': health_check.get_uptime_seconds()
                     }
                     logger.info("Sending response: %s", response)
                     self._send_json_response(200, response)
@@ -186,6 +186,14 @@ class HealthCheck:
         """
         self._next_scheduled_run = next_run
 
+    def get_uptime_seconds(self) -> float:
+        """Get uptime in seconds.
+
+        Returns:
+            Uptime in seconds
+        """
+        return (datetime.now() - self._started_at).total_seconds()
+
     def get_status(self) -> Dict[str, Any]:
         """Get current health status.
 
@@ -195,7 +203,7 @@ class HealthCheck:
         return {
             'status': self._status.value,
             'timestamp': get_utc_iso_timestamp(),
-            'uptime_seconds': (datetime.now() - self._started_at).total_seconds(),
+            'uptime_seconds': self.get_uptime_seconds(),
             'last_successful_run': self._last_successful_run.isoformat() if self._last_successful_run else None,
             'last_failed_run': self._last_failed_run.isoformat() if self._last_failed_run else None,
             'next_scheduled_run': self._next_scheduled_run.isoformat() if self._next_scheduled_run else None,
@@ -211,6 +219,6 @@ class HealthCheck:
         """
         return {
             'timestamp': get_utc_iso_timestamp(),
-            'uptime_seconds': (datetime.now() - self._started_at).total_seconds(),
+            'uptime_seconds': self.get_uptime_seconds(),
             **self._metrics
         }

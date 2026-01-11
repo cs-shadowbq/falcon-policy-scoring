@@ -27,7 +27,7 @@ class CronParser:
     """Parse and evaluate cron expressions."""
 
     @staticmethod
-    def parse_field(field: str, min_val: int, max_val: int) -> List[int]:
+    def parse_field(field_str: str, min_val: int, max_val: int) -> List[int]:
         """Parse a single cron field.
 
         Supports:
@@ -37,26 +37,26 @@ class CronParser:
         - N-M (range)
         - N,M,O (list)
         """
-        if field == '*':
+        if field_str == '*':
             return list(range(min_val, max_val + 1))
 
-        if '/' in field:
-            parts = field.split('/')
+        if '/' in field_str:
+            parts = field_str.split('/')
             step = int(parts[1])
             if parts[0] == '*':
                 return list(range(min_val, max_val + 1, step))
-            else:
-                start = int(parts[0])
-                return list(range(start, max_val + 1, step))
 
-        if ',' in field:
-            return [int(x) for x in field.split(',')]
+            start = int(parts[0])
+            return list(range(start, max_val + 1, step))
 
-        if '-' in field:
-            start, end = field.split('-')
+        if ',' in field_str:
+            return [int(x) for x in field_str.split(',')]
+
+        if '-' in field_str:
+            start, end = field_str.split('-')
             return list(range(int(start), int(end) + 1))
 
-        return [int(field)]
+        return [int(field_str)]
 
     @classmethod
     def parse_cron(cls, cron_expr: str) -> Dict[str, List[int]]:
@@ -181,7 +181,7 @@ class Scheduler:
 
     def get_all_tasks_status(self) -> List[Dict]:
         """Get status for all tasks."""
-        return [self.get_task_status(name) for name in self.tasks.keys()]
+        return [self.get_task_status(name) for name in self.tasks]
 
     def check_and_run_tasks(self) -> List[Tuple[str, bool, Optional[str]]]:
         """Check all tasks and run those that are due.
@@ -204,7 +204,7 @@ class Scheduler:
                 try:
                     task.handler(*task.args, **task.kwargs)
                     task.last_run = now
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error("Task '%s' failed: %s", name, e, exc_info=True)
                     success = False
                     error_msg = str(e)
@@ -213,7 +213,7 @@ class Scheduler:
                 try:
                     task.next_run = self._parser.get_next_run(task.schedule, now)
                     logger.info("Task '%s' next run: %s", name, task.next_run)
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error("Failed to calculate next run for task '%s': %s", name, e)
                     task.enabled = False
 
@@ -244,7 +244,7 @@ class Scheduler:
             except KeyboardInterrupt:
                 logger.info("Scheduler interrupted by user")
                 break
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error("Scheduler error: %s", e, exc_info=True)
                 # Also use incremental sleep for error recovery
                 for _ in range(check_interval):

@@ -16,6 +16,17 @@ DEFAULT_PROGRESS_THRESHOLD = 500
 API_COMMAND_GET_DEVICE_DETAILS = 'GetDeviceDetailsV2'
 
 
+# Rich styles (used by CLI formatters and output strategies)
+class Style:  # pylint: disable=too-few-public-methods
+    """Rich markup style constants."""
+    GREEN = "green"
+    RED = "red"
+    YELLOW = "yellow"
+    DIM = "dim"
+    CYAN = "cyan"
+    BOLD = "bold"
+
+
 # Database record types
 class RecordType(Enum):
     """Database record type enumeration."""

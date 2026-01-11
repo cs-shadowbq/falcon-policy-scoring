@@ -122,7 +122,7 @@ workflows:
 	@echo "Running Bandit scan..."
 	bandit -r src -ll -ii -s B104
 	@echo "Running Pylint..."
-	pylint src/falcon_policy_scoring --disable=R0801,C0411,C0301,C0413,C0415
+	pylint src/falcon_policy_scoring --disable=R0801,C0411,C0301,C0413,C0415,W0613
 
 
 install:

@@ -15,7 +15,7 @@ def setup_logging(config, worker_name="proc"):
     """
     try:
         prefix = f"{worker_name}.{os.getpid()}"
-    except:
+    except (OSError, AttributeError, NotImplementedError):
         # If os.getpid() fails, we are likely in a non-standard environment.
         # Create a random number for the worker name.
         import random

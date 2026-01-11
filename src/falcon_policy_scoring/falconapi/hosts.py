@@ -10,14 +10,14 @@ class Hosts:
     Uses QueryDevicesByFilterScroll for improved pagination with large datasets.
     """
 
-    def __init__(self, cid, falcon, filter=None, product_types=None, device_ids=None):
+    def __init__(self, cid, falcon, filter_str=None, product_types=None, device_ids=None):
         """
         Initialize Hosts instance.
 
         Args:
             cid: CrowdStrike Customer ID
             falcon: APIHarnessV2 instance
-            filter: Optional FQL filter string (will be combined with other filters)
+            filter_str: Optional FQL filter string (will be combined with other filters)
             product_types: List of product types to include, or empty list/None for no filtering
             device_ids: Optional list of device IDs to filter by (for host group filtering)
         """
@@ -32,7 +32,7 @@ class Hosts:
         # If we have other filters (like last_seen) with a large device_ids list,
         # it's better to query with other filters and post-filter by device_ids
         use_device_ids_in_fql = True
-        if device_ids and (filter or product_types):
+        if device_ids and (filter_str or product_types):
             # If the device list is large, don't include in FQL
             if len(device_ids) > 100:  # Arbitrary threshold
                 use_device_ids_in_fql = False
@@ -40,7 +40,7 @@ class Hosts:
 
         # Build the filter with or without device IDs in FQL
         device_ids_for_fql = device_ids if use_device_ids_in_fql else None
-        self.filter = self._build_filter(filter, product_types, device_ids_for_fql)
+        self.filter = self._build_filter(filter_str, product_types, device_ids_for_fql)
         self.total = self.device_count()
 
     def _build_filter(self, custom_filter=None, product_types=None, device_ids=None):

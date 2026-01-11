@@ -172,3 +172,5 @@ tests/*/vcr_cassette*/
 htmlcov/
 coverage.xml
 .pytest_cache/
+
+*.csv

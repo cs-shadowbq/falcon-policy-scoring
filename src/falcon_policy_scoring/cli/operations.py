@@ -5,8 +5,7 @@ from falcon_policy_scoring.falconapi.zero_trust import fetch_zero_trust_assessme
 from falcon_policy_scoring.utils.policy_registry import get_policy_registry
 from falcon_policy_scoring.grading.engine import load_grading_config, POLICY_GRADERS, DEFAULT_GRADING_CONFIGS
 from falcon_policy_scoring.falconapi.policies import get_policy_table_name
-from .constants import Style, DEFAULT_PROGRESS_THRESHOLD
-from falcon_policy_scoring.utils.constants import DEFAULT_BATCH_SIZE
+from falcon_policy_scoring.utils.constants import Style, DEFAULT_PROGRESS_THRESHOLD, DEFAULT_BATCH_SIZE
 from .helpers import parse_host_groups
 
 
@@ -22,11 +21,10 @@ def parse_product_types(product_types_arg):
     if product_types_arg:
         if product_types_arg.lower() == 'all':
             return []  # Empty list means no filtering
-        else:
-            return [pt.strip() for pt in product_types_arg.split(',')]
-    else:
-        # Default: only include these device types
-        return ['Workstation', 'Domain Controller', 'Server']
+        return [pt.strip() for pt in product_types_arg.split(',')]
+
+    # Default: only include these device types
+    return ['Workstation', 'Domain Controller', 'Server']
 
 
 def fetch_and_store_hosts(falcon, adapter, cid: str, product_types, config, ctx, host_group_names=None, last_seen_filter=None):
@@ -69,7 +67,7 @@ def fetch_and_store_hosts(falcon, adapter, cid: str, product_types, config, ctx,
             raise
 
     # Get host list
-    hosts_api = Hosts(cid, falcon, filter=last_seen_filter, product_types=product_types, device_ids=device_ids_filter)
+    hosts_api = Hosts(cid, falcon, filter_str=last_seen_filter, product_types=product_types, device_ids=device_ids_filter)
     hosts_list = hosts_api.get_devices()
     adapter.put_hosts(hosts_list)
 
@@ -176,11 +174,18 @@ def fetch_and_grade_all_policies(falcon, adapter, cid: str, policy_types: list, 
                 elif result.get('grade_success'):
                     passed = result.get('passed_policies', 0)
                     failed = result.get('failed_policies', 0)
+                    ungradable = result.get('ungradable_policies', 0)
                     total = result.get('policies_count', 0)
+
+                    status_parts = [f"{passed}/{total} passed"]
+                    if failed > 0:
+                        status_parts.append(f"{failed} failed")
+                    if ungradable > 0:
+                        status_parts.append(f"{ungradable} ungradable")
 
                     ctx.console.print(
                         f"[{Style.BOLD}][{Style.GREEN}]✓ {policy_info.display_name} Policies: "
-                        f"{passed}/{total} passed, {failed} failed[/{Style.GREEN}][/{Style.BOLD}]"
+                        f"{', '.join(status_parts)}[/{Style.GREEN}][/{Style.BOLD}]"
                     )
                 elif result.get('fetch_success'):
                     ctx.console.print(
@@ -367,8 +372,9 @@ def regrade_policies(adapter, cid: str, policy_types: list, ctx):
             adapter.put_graded_policies(f'{policy_type}_policies', cid, graded_results)
 
             # Calculate summary
-            passed = sum(1 for r in graded_results if r.get('passed', False))
-            failed = len(graded_results) - passed
+            passed = sum(1 for r in graded_results if r.get('grading_status', 'graded') == 'graded' and r.get('passed', False))
+            ungradable = sum(1 for r in graded_results if r.get('grading_status') == 'ungradable')
+            failed = len(graded_results) - passed - ungradable
             total = len(graded_results)
 
             total_passed += passed
@@ -377,9 +383,15 @@ def regrade_policies(adapter, cid: str, policy_types: list, ctx):
 
             # Show results
             if not ctx.json_output_mode:
+                status_parts = [f"{passed}/{total} passed"]
+                if failed > 0:
+                    status_parts.append(f"{failed} failed")
+                if ungradable > 0:
+                    status_parts.append(f"{ungradable} ungradable")
+
                 ctx.console.print(
                     f"[{Style.BOLD}][{Style.GREEN}]✓ {policy_info.display_name} Policies: "
-                    f"{passed}/{total} passed, {failed} failed[/{Style.GREEN}][/{Style.BOLD}]"
+                    f"{', '.join(status_parts)}[/{Style.GREEN}][/{Style.BOLD}]"
                 )
 
     # Print summary
