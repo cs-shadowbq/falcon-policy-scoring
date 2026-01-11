@@ -12,17 +12,6 @@ Tests use synthetic policy data and are designed to remain valid when new
 grading files or comparison types are added.
 """
 
-import pytest
-import json
-from pathlib import Path
-from typing import Dict, Any, List
-
-from falcon_policy_scoring.grading.engine import (
-    load_grading_config,
-    grade_setting,
-    grade_prevention_policy,
-    _create_empty_policy_result
-)
 from falcon_policy_scoring.grading.utils import (
     compare_mlslider,
     compare_toggle,
@@ -33,6 +22,25 @@ from falcon_policy_scoring.grading.constants import (
     TOGGLE_LEVELS,
     N_LEVELS
 )
+import pytest
+import json
+from pathlib import Path
+from typing import Dict, Any, List
+
+from falcon_policy_scoring.grading.engine import load_grading_config
+from falcon_policy_scoring.grading.results import (
+    grade_setting,
+    _create_empty_policy_result
+)
+from falcon_policy_scoring.grading.graders.prevention import (
+    grade_prevention_policy as _grade_prevention_policy
+)
+
+# Wrapper for backward compatibility with test signature
+def grade_prevention_policy(policy, grading_config):
+    return _grade_prevention_policy(
+        policy, grading_config, grade_setting, _create_empty_policy_result
+    )
 
 
 @pytest.mark.unit
@@ -573,6 +581,310 @@ class TestConstantsRegistry:
         assert N_LEVELS['n-2'] < N_LEVELS['n-1']
         assert N_LEVELS['n-1'] < N_LEVELS['n']
         assert N_LEVELS['disabled'] < N_LEVELS['n-2']
+
+
+@pytest.mark.unit
+class TestITAutomationGrading:
+    """Test IT automation policy grading with focus on config transformation and output."""
+
+    def test_normalize_it_automation_config_windows(self):
+        """Test config normalization for Windows platform."""
+        from falcon_policy_scoring.grading.utils import normalize_it_automation_config
+
+        config = {
+            "Windows": {
+                "is_enabled": True,
+                "config": {
+                    "execution": {
+                        "enable_script_execution": True
+                    }
+                }
+            }
+        }
+
+        normalized = normalize_it_automation_config(config)
+
+        # Verify output structure
+        assert "platform_requirements" in normalized
+        assert isinstance(normalized["platform_requirements"], list)
+        assert len(normalized["platform_requirements"]) == 1
+
+        # Verify platform transformation
+        platform = normalized["platform_requirements"][0]
+        assert platform["platform_name"] == "Windows"
+        assert "policy_requirements" in platform
+        assert platform["policy_requirements"]["is_enabled"] is True
+        assert platform["policy_requirements"]["config"]["execution"]["enable_script_execution"] is True
+
+    def test_normalize_it_automation_config_multiple_platforms(self):
+        """Test config normalization handles multiple platforms."""
+        from falcon_policy_scoring.grading.utils import normalize_it_automation_config
+
+        config = {
+            "Windows": {"is_enabled": True, "config": {}},
+            "Linux": {"is_enabled": True, "config": {}},
+            "Mac": {"is_enabled": False, "config": {}}
+        }
+
+        normalized = normalize_it_automation_config(config)
+
+        # Verify all platforms transformed
+        assert len(normalized["platform_requirements"]) == 3
+        platform_names = [p["platform_name"] for p in normalized["platform_requirements"]]
+        assert "Windows" in platform_names
+        assert "Linux" in platform_names
+        assert "Mac" in platform_names
+
+    def test_normalize_it_automation_config_preserves_values(self):
+        """Test config normalization preserves nested values."""
+        from falcon_policy_scoring.grading.utils import normalize_it_automation_config
+
+        config = {
+            "Linux": {
+                "is_enabled": False,
+                "config": {
+                    "execution": {
+                        "enable_script_execution": False,
+                        "custom_field": "value"
+                    },
+                    "other_section": {"key": 123}
+                }
+            }
+        }
+
+        normalized = normalize_it_automation_config(config)
+        platform = normalized["platform_requirements"][0]
+
+        # Verify all nested values preserved
+        assert platform["policy_requirements"]["is_enabled"] is False
+        assert platform["policy_requirements"]["config"]["execution"]["enable_script_execution"] is False
+        assert platform["policy_requirements"]["config"]["execution"]["custom_field"] == "value"
+        assert platform["policy_requirements"]["config"]["other_section"]["key"] == 123
+
+    def test_grade_it_automation_policy_all_pass(self):
+        """Test IT automation grading when policy meets all requirements."""
+        from falcon_policy_scoring.grading.graders.it_automation import grade_it_automation_policy
+
+        grading_config = {
+            "Windows": {
+                "is_enabled": True,
+                "config": {
+                    "execution": {
+                        "enable_script_execution": True
+                    }
+                }
+            }
+        }
+
+        policy = {
+            "id": "test-1",
+            "name": "Test Policy",
+            "target": "Windows",
+            "is_enabled": True,
+            "config": {
+                "execution": {
+                    "enable_script_execution": True
+                }
+            }
+        }
+
+        result = grade_it_automation_policy(policy, grading_config)
+
+        # Verify output structure and passing grade
+        assert result["passed"] is True
+        assert result["checks_count"] == 2
+        assert result["failures_count"] == 0
+        # Verify result has expected fields (flexible on structure)
+        assert "policy_id" in result
+        assert "policy_name" in result
+
+    def test_grade_it_automation_policy_disabled_fails(self):
+        """Test IT automation grading fails when policy is disabled but should be enabled."""
+        from falcon_policy_scoring.grading.graders.it_automation import grade_it_automation_policy
+
+        grading_config = {
+            "Linux": {
+                "is_enabled": True,
+                "config": {}
+            }
+        }
+
+        policy = {
+            "id": "test-2",
+            "name": "Disabled Policy",
+            "target": "Linux",
+            "is_enabled": False,
+            "config": {}
+        }
+
+        result = grade_it_automation_policy(policy, grading_config)
+
+        # Verify failure for disabled policy
+        assert result["passed"] is False
+        assert result["failures_count"] >= 1
+        # Verify failure message mentions the issue
+        result_str = str(result).lower()
+        assert "is_enabled" in result_str or "enabled" in result_str
+
+    def test_grade_it_automation_policy_script_execution_fails(self):
+        """Test IT automation grading fails when script execution is disabled."""
+        from falcon_policy_scoring.grading.graders.it_automation import grade_it_automation_policy
+
+        grading_config = {
+            "Mac": {
+                "is_enabled": True,
+                "config": {
+                    "execution": {
+                        "enable_script_execution": True
+                    }
+                }
+            }
+        }
+
+        policy = {
+            "id": "test-3",
+            "name": "No Script Execution",
+            "target": "Mac",
+            "is_enabled": True,
+            "config": {
+                "execution": {
+                    "enable_script_execution": False
+                }
+            }
+        }
+
+        result = grade_it_automation_policy(policy, grading_config)
+
+        # Verify failure for script execution setting
+        assert result["passed"] is False
+        assert result["failures_count"] >= 1
+        # Verify failure message mentions script execution
+        result_str = str(result).lower()
+        assert "script" in result_str or "execution" in result_str
+
+    def test_grade_it_automation_policy_case_insensitive_platform(self):
+        """Test IT automation grading handles case-insensitive platform matching."""
+        from falcon_policy_scoring.grading.graders.it_automation import grade_it_automation_policy
+
+        grading_config = {
+            "Windows": {
+                "is_enabled": True,
+                "config": {}
+            }
+        }
+
+        # Test with lowercase target
+        policy = {
+            "id": "test-4",
+            "name": "Lowercase Target",
+            "target": "windows",
+            "is_enabled": True,
+            "config": {}
+        }
+
+        result = grade_it_automation_policy(policy, grading_config)
+
+        # Should find config despite case mismatch
+        assert "passed" in result
+        assert result["checks_count"] >= 1
+
+    def test_grade_it_automation_policy_unknown_platform(self):
+        """Test IT automation grading handles unknown platform gracefully."""
+        from falcon_policy_scoring.grading.graders.it_automation import grade_it_automation_policy
+
+        grading_config = {
+            "Windows": {
+                "is_enabled": True,
+                "config": {}
+            }
+        }
+
+        policy = {
+            "id": "test-5",
+            "name": "Unknown Platform",
+            "target": "UnknownOS",
+            "is_enabled": True,
+            "config": {}
+        }
+
+        result = grade_it_automation_policy(policy, grading_config)
+
+        # Should return result even for unknown platform
+        assert "passed" in result
+        assert "checks_count" in result
+        assert "failures_count" in result
+
+    def test_grade_it_automation_policy_multiple_checks(self):
+        """Test IT automation grading evaluates multiple settings."""
+        from falcon_policy_scoring.grading.graders.it_automation import grade_it_automation_policy
+
+        grading_config = {
+            "Linux": {
+                "is_enabled": True,
+                "config": {
+                    "execution": {
+                        "enable_script_execution": True
+                    }
+                }
+            }
+        }
+
+        policy = {
+            "id": "test-6",
+            "name": "Multi Check Policy",
+            "target": "Linux",
+            "is_enabled": True,
+            "config": {
+                "execution": {
+                    "enable_script_execution": True
+                }
+            }
+        }
+
+        result = grade_it_automation_policy(policy, grading_config)
+
+        # Verify multiple checks executed
+        assert result["checks_count"] >= 2
+        assert result["passed"] is True
+        assert result["failures_count"] == 0
+        # Verify result includes policy identification
+        assert result["policy_id"] == "test-6"
+        assert result["policy_name"] == "Multi Check Policy"
+
+    def test_grade_it_automation_policy_with_real_config(self):
+        """Test IT automation grading with actual config file if available."""
+        from falcon_policy_scoring.grading.graders.it_automation import grade_it_automation_policy
+
+        config_path = Path('config/grading/it_automation_policies_grading.json')
+        if not config_path.exists():
+            pytest.skip("Config file not available")
+
+        with open(config_path) as f:
+            grading_config = json.load(f)
+
+        # Test with Windows policy matching config
+        policy = {
+            "id": "real-test",
+            "name": "Real Config Test",
+            "target": "Windows",
+            "is_enabled": True,
+            "config": {
+                "execution": {
+                    "enable_script_execution": True
+                }
+            }
+        }
+
+        result = grade_it_automation_policy(policy, grading_config)
+
+        # Verify output structure matches expected format
+        assert isinstance(result, dict)
+        assert result["passed"] is True
+        assert result["checks_count"] > 0
+        assert result["failures_count"] == 0
+        # Verify policy was graded successfully
+        assert result["policy_name"] == "Real Config Test"
+        assert result["target"] == "Windows"
 
 
 @pytest.mark.unit

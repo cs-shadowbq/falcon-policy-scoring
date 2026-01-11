@@ -15,7 +15,7 @@ def ttl_expired(latest_ttl, ttl_maximum, epoch=int(time.time())):
     """
     try:
         return epoch - latest_ttl > ttl_maximum
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return True
 
 def epoch_now():

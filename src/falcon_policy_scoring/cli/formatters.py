@@ -1,8 +1,7 @@
 """Formatters for displaying policy audit results."""
 from rich.table import Table
 from typing import Dict, List, Optional
-from .constants import Style
-from falcon_policy_scoring.utils.constants import PolicyStatus
+from falcon_policy_scoring.utils.constants import Style, PolicyStatus
 from .helpers import calculate_score_percentage, get_platform_name
 from falcon_policy_scoring.utils.policy_helpers import calculate_policy_stats
 from falcon_policy_scoring.utils.cache_helpers import (
@@ -22,12 +21,14 @@ def format_status_cell(status: str) -> str:
     """
     if status == PolicyStatus.PASSED.value:
         return f"[{Style.GREEN}]✓ PASSED[/{Style.GREEN}]"
-    elif status == PolicyStatus.FAILED.value:
+    if status == PolicyStatus.FAILED.value:
         return f"[{Style.RED}]✗ FAILED[/{Style.RED}]"
-    elif status == PolicyStatus.NOT_GRADED.value:
+    if status == "UNGRADABLE":
+        return f"[{Style.YELLOW}]⚠ UNGRADABLE[/{Style.YELLOW}]"
+    if status == PolicyStatus.NOT_GRADED.value:
         return f"[{Style.YELLOW}]NOT GRADED[/{Style.YELLOW}]"
-    else:  # NO POLICY ASSIGNED
-        return f"[{Style.DIM}]NO POLICY[/{Style.DIM}]"
+    # NO POLICY ASSIGNED
+    return f"[{Style.DIM}]NO POLICY[/{Style.DIM}]"
 
 
 def calculate_cache_info(graded_record: Dict, config: Dict, policy_type: str) -> CacheInfo:
@@ -73,42 +74,56 @@ def format_policy_table_row(policy: Dict) -> tuple:
     platform_name = get_platform_name(policy)
     checks_count = policy.get('checks_count', 0)
     failures_count = policy.get('failures_count', 0)
+    grading_status = policy.get('grading_status', 'graded')
 
     # Determine status
-    if policy.get('passed', False):
+    if grading_status == 'ungradable':
+        status_icon = "⚠"
+        status_color = Style.YELLOW
+        score_display = "N/A"
+        score_style = Style.YELLOW
+        checks_display = "ungradable"
+        checks_style = Style.YELLOW
+        checks_suffix = ""
+    elif policy.get('passed', False):
         status_icon = "✓"
         status_color = Style.GREEN
+        # Calculate score
+        if checks_count > 0:
+            score_pct = calculate_score_percentage(checks_count, failures_count)
+            score_display = f"{score_pct:.1f}%"
+            score_style = Style.GREEN
+        else:
+            score_display = "N/A"
+            score_style = Style.DIM
+        # Format checks display
+        checks_display = f"{failures_count}/{checks_count}"
+        checks_style = Style.GREEN
+        checks_suffix = " failed"
     else:
         status_icon = "✗"
         status_color = Style.RED
-
-    # Calculate score
-    if checks_count > 0:
-        score_pct = calculate_score_percentage(checks_count, failures_count)
-        score_display = f"{score_pct:.1f}%"
-
-        if score_pct == 100:
-            score_style = Style.GREEN
-        elif score_pct >= 80:
-            score_style = Style.YELLOW
+        # Calculate score
+        if checks_count > 0:
+            score_pct = calculate_score_percentage(checks_count, failures_count)
+            score_display = f"{score_pct:.1f}%"
+            if score_pct >= 80:
+                score_style = Style.YELLOW
+            else:
+                score_style = Style.RED
         else:
-            score_style = Style.RED
-    else:
-        score_display = "N/A"
-        score_style = Style.DIM
-
-    # Format checks display
-    checks_display = f"{failures_count}/{checks_count}"
-    if failures_count == 0:
-        checks_style = Style.GREEN
-    else:
+            score_display = "N/A"
+            score_style = Style.DIM
+        # Format checks display
+        checks_display = f"{failures_count}/{checks_count}"
         checks_style = Style.RED
+        checks_suffix = " failed"
 
     return (
         f"[{status_color}]{status_icon}[/{status_color}]",
         policy.get('policy_name', 'Unknown'),
         platform_name,
-        f"[{checks_style}]{checks_display}[/{checks_style}] failed",
+        f"[{checks_style}]{checks_display}[/{checks_style}]{checks_suffix}",
         f"[{score_style}]{score_display}[/{score_style}]"
     )
 
@@ -153,6 +168,8 @@ def print_policy_table(graded_record: Dict, policy_type: str, config: Dict, poli
     ctx.console.print(f"\n[{Style.BOLD}]Summary:[/{Style.BOLD}]")
     ctx.console.print(f"  ✅ Passed: [{Style.GREEN}]{stats['passed_count']}[/{Style.GREEN}]")
     ctx.console.print(f"  ❌ Failed: [{Style.RED}]{stats['failed_count']}[/{Style.RED}]")
+    if stats.get('ungradable_count', 0) > 0:
+        ctx.console.print(f"  ⚠️  Ungradable: [{Style.YELLOW}]{stats['ungradable_count']}[/{Style.YELLOW}]")
     if stats['total_checks'] > 0:
         overall_score = calculate_score_percentage(stats['total_checks'], stats['total_failures'])
         ctx.console.print(f"  📊 Overall Score: {overall_score:.1f}%")
@@ -172,7 +189,7 @@ def print_cache_warning(cache_info: CacheInfo, ctx):
         cache_info: Cache information
         ctx: CLI context
     """
-    ctx.console.print(f"  [{Style.YELLOW}]⚠ Cache exceeded TTL. Consider using --fetch to refresh[/{Style.YELLOW}]")
+    ctx.console.print(f"  [{Style.YELLOW}]⚠ Cache exceeded TTL. Consider using fetch subcommand to refresh[/{Style.YELLOW}]")
 
 
 def format_failure_details(setting_results, ctx):
@@ -213,26 +230,43 @@ def print_policy_details(graded_record: Dict, policy_type: str, ctx):
     if not graded_record or 'graded_policies' not in graded_record:
         return
 
-    failed_policies = [p for p in graded_record['graded_policies'] if not p.get('passed', True)]
+    failed_policies = [p for p in graded_record['graded_policies']
+                       if p.get('grading_status', 'graded') == 'graded' and not p.get('passed', True)]
+    ungradable_policies = [p for p in graded_record['graded_policies']
+                           if p.get('grading_status') == 'ungradable']
 
-    if not failed_policies:
+    if not failed_policies and not ungradable_policies:
         ctx.console.print(f"[{Style.GREEN}]All {policy_type.replace('_', ' ').title()} policies passed! ✓[/{Style.GREEN}]\n")
         return
 
-    ctx.console.print(f"\n[{Style.BOLD}] [{Style.RED}]Failed {policy_type.replace('_', ' ').title()} Policies - Detailed Results:[/{Style.RED}][/{Style.BOLD}]\n")
+    # Print failed policies
+    if failed_policies:
+        ctx.console.print(f"\n[{Style.BOLD}][{Style.RED}]Failed {policy_type.replace('_', ' ').title()} Policies - Detailed Results:[/{Style.RED}][/{Style.BOLD}]\n")
 
-    for policy_result in failed_policies:
-        platform_name = get_platform_name(policy_result)
+        for policy_result in failed_policies:
+            platform_name = get_platform_name(policy_result)
 
-        ctx.console.print(f"[{Style.BOLD}]Policy:[/{Style.BOLD}] {policy_result.get('policy_name', 'Unknown')} ({platform_name})")
-        ctx.console.print(f"[{Style.BOLD}]Status:[/{Style.BOLD}] [{Style.RED}]FAILED[/{Style.RED}]")
-        ctx.console.print(f"[{Style.BOLD}]Failed Checks:[/{Style.BOLD}] {policy_result.get('failures_count', 0)}/{policy_result.get('checks_count', 0)}\n")
+            ctx.console.print(f"[{Style.BOLD}]Policy:[/{Style.BOLD}] {policy_result.get('policy_name', 'Unknown')} ({platform_name})")
+            ctx.console.print(f"[{Style.BOLD}]Status:[/{Style.BOLD}] [{Style.RED}]FAILED[/{Style.RED}]")
+            ctx.console.print(f"[{Style.BOLD}]Failed Checks:[/{Style.BOLD}] {policy_result.get('failures_count', 0)}/{policy_result.get('checks_count', 0)}\n")
 
-        ctx.console.print(f"[{Style.BOLD}]Failures:[/{Style.BOLD}]")
+            ctx.console.print(f"[{Style.BOLD}]Failures:[/{Style.BOLD}]")
 
-        format_failure_details(policy_result.get('setting_results', []), ctx)
+            format_failure_details(policy_result.get('setting_results', []), ctx)
 
-        ctx.console.print()
+            ctx.console.print()
+
+    # Print ungradable policies
+    if ungradable_policies:
+        ctx.console.print(f"\n[{Style.BOLD}][{Style.YELLOW}]Ungradable {policy_type.replace('_', ' ').title()} Policies - Details:[/{Style.YELLOW}][/{Style.BOLD}]\n")
+
+        for policy_result in ungradable_policies:
+            platform_name = get_platform_name(policy_result)
+            reason = policy_result.get('ungradable_reason', 'unknown')
+
+            ctx.console.print(f"[{Style.BOLD}]Policy:[/{Style.BOLD}] {policy_result.get('policy_name', 'Unknown')} ({platform_name})")
+            ctx.console.print(f"[{Style.BOLD}]Status:[/{Style.BOLD}] [{Style.YELLOW}]UNGRADABLE[/{Style.YELLOW}]")
+            ctx.console.print(f"[{Style.BOLD}]Reason:[/{Style.BOLD}] {reason.replace('_', ' ').title()}\n")
 
 
 def build_host_table(host_rows: List[Dict], ctx, config: Dict = None, policy_types: List[str] = None) -> Table:

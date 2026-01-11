@@ -80,6 +80,6 @@ def fetch_policy_containers(falcon, db_adapter, policy_ids: List[str], cid: str)
             'count': len(containers_map)
         }
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Exception fetching policy containers: %s", e)
         return {'policy_containers': {}, 'count': 0}

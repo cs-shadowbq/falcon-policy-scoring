@@ -95,7 +95,7 @@ def fetch_policy_settings(falcon, db_adapter, policy_ids: List[str], cid: str) -
             'count': len(settings_map)
         }
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Exception fetching device control policy settings: %s", e)
         import traceback
         logging.error(traceback.format_exc())

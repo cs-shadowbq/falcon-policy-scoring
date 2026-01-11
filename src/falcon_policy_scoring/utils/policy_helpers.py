@@ -26,15 +26,19 @@ def calculate_policy_stats(policies: List[Dict]) -> Dict:
         policies: List of policy dictionaries
 
     Returns:
-        Dictionary with stats (passed_count, failed_count, total_checks, total_failures, displayed_count)
+        Dictionary with stats (passed_count, failed_count, ungradable_count, total_checks, total_failures, displayed_count)
     """
     passed_count = 0
     failed_count = 0
+    ungradable_count = 0
     total_checks = 0
     total_failures = 0
 
     for policy in policies:
-        if policy.get('passed', False):
+        grading_status = policy.get('grading_status', 'graded')
+        if grading_status == 'ungradable':
+            ungradable_count += 1
+        elif policy.get('passed', False):
             passed_count += 1
         else:
             failed_count += 1
@@ -45,6 +49,7 @@ def calculate_policy_stats(policies: List[Dict]) -> Dict:
     return {
         'passed_count': passed_count,
         'failed_count': failed_count,
+        'ungradable_count': ungradable_count,
         'total_checks': total_checks,
         'total_failures': total_failures,
         'displayed_count': len(policies)
@@ -76,7 +81,7 @@ def get_policy_status(policy_id: Optional[str], graded_record: Optional[Dict]) -
         graded_record: Graded policies record
 
     Returns:
-        Status string: PASSED, FAILED, NOT GRADED, or NO POLICY ASSIGNED
+        Status string: PASSED, FAILED, UNGRADABLE, NOT GRADED, or NO POLICY ASSIGNED
     """
     if not policy_id:
         return "NO POLICY ASSIGNED"
@@ -86,7 +91,10 @@ def get_policy_status(policy_id: Optional[str], graded_record: Optional[Dict]) -
 
     for policy_result in graded_record['graded_policies']:
         if policy_result['policy_id'] == policy_id:
-            return "PASSED" if policy_result['passed'] else "FAILED"
+            # Check if policy was ungradable
+            if policy_result.get('grading_status') == 'ungradable':
+                return "UNGRADABLE"
+            return "PASSED" if policy_result.get('passed') else "FAILED"
 
     return "NOT GRADED"
 

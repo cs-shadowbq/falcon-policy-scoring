@@ -3,6 +3,22 @@ name: Pylint
 permissions:
   contents: read
 
+_comment: >
+  C0301 (line-too-long): Some lines (URLs, long string literals, complex type hints, FQL queries) are more readable when kept intact rather than 
+    artificially wrapped. Modern wide monitors and horizontal scrolling make this less a personal preference.
+  R0801 (duplicate-code): Similar lines across files are often unavoidable in policy grading logic where each policy type follows similar patterns 
+    but with type-specific variations. The structural similarity is intentional for consistency and maintainability.
+  C0411 (wrong-import-order): Import ordering can conflict with formatter tools (black, isort) and doesn't affect functionality. Team consistency 
+    via automated formatters takes precedence over pylint's preferences.
+  C0413 (wrong-import-position): Used intentionally for conditional imports (e.g., TYPE_CHECKING guards, optional dependencies) and module-level 
+    initialization that must occur before imports.
+  C0415 (import-outside-toplevel): Lazy imports inside functions/methods are deliberately used to:
+    * Break circular import dependencies
+    * Improve startup time by deferring expensive imports
+    * Load optional dependencies only when needed
+  W0613 (unused-argument): Common in interface implementations, abstract method overrides, active development and callback signatures where the 
+    signature must match but not all parameters are used in every implementation.
+
 on:
   workflow_dispatch:
 
@@ -31,7 +47,7 @@ jobs:
       - name: Lint package source with pylint
         run: |
           # exit-zero treats all errors as warnings.
-          pylint src/falcon_policy_scoring --disable=R0801,C0411,C0301,C0413,C0415 --exit-zero
+          pylint src/falcon_policy_scoring --disable=R0801,C0411,C0301,C0413,C0415,W0613 --exit-zero
 
       - name: Lint Summary
         run: |

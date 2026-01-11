@@ -159,7 +159,7 @@ def get_policies(falcon, policy_type):
         if response['status_code'] == 403:
             logging.warning("Access denied (403) for %s policies", policy_type)
             return {'error': 403, 'status_code': 403, 'body': {}}
-        elif response['status_code'] != 200:
+        if response['status_code'] != 200:
             logging.error("Failed to fetch %s policies: %s", policy_type, response)
             return {'error': response['status_code'], 'status_code': response['status_code'], 'body': {}}
 
@@ -248,13 +248,13 @@ def fetch_and_store_policy(falcon, db_adapter, cid, policy_type):
 
             if 'error' in response:
                 logging.warning("Stored %s policies error (%s) for CID %s", policy_type, response['error'], cid)
-            else:
-                logging.info("Stored %s policies for CID %s", policy_type, cid)
+
+            logging.info("Stored %s policies for CID %s", policy_type, cid)
             return True
-        else:
-            logging.error("Failed to fetch %s policies", policy_type)
-            return False
-    except Exception as e:
+
+        logging.error("Failed to fetch %s policies", policy_type)
+        return False
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Exception while fetching %s policies: %s", policy_type, e)
         return False
 
@@ -281,7 +281,7 @@ def fetch_and_store_all_policies(falcon, db_adapter, cid):
         try:
             success = fetch_and_store_policy(falcon, db_adapter, cid, policy_type)
             results[policy_type] = success
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logging.error("Error fetching %s policies: %s", policy_type, e)
             results[policy_type] = False
 
@@ -366,7 +366,6 @@ def fetch_grade_and_store_firewall_policies(falcon, db_adapter, cid, grading_con
     """
     from falcon_policy_scoring.falconapi import firewall as firewall_module
     from falcon_policy_scoring.grading import engine as grading_engine
-    import logging
 
     result = {
         'fetch_success': False,
@@ -453,7 +452,7 @@ def fetch_grade_and_store_firewall_policies(falcon, db_adapter, cid, grading_con
             result['passed_policies'], result['policies_count'], result['containers_count']
         )
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Error during fetch_grade_and_store_firewall_policies: %s", e)
         import traceback
         logging.error(traceback.format_exc())
@@ -482,7 +481,6 @@ def fetch_grade_and_store_device_control_policies(falcon, db_adapter, cid, gradi
     """
     from falcon_policy_scoring.falconapi import device_control as device_control_module
     from falcon_policy_scoring.grading import engine as grading_engine
-    import logging
 
     result = {
         'fetch_success': False,
@@ -581,7 +579,7 @@ def fetch_grade_and_store_device_control_policies(falcon, db_adapter, cid, gradi
             result['passed_policies'], result['policies_count'], result['settings_count']
         )
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Error during fetch_grade_and_store_device_control_policies: %s", e)
         import traceback
         logging.error(traceback.format_exc())
@@ -609,7 +607,6 @@ def fetch_grade_and_store_it_automation_policies(falcon, db_adapter, cid, gradin
     """
     from falcon_policy_scoring.falconapi import it_automation
     from falcon_policy_scoring.grading import engine as grading_engine
-    import logging
 
     result = {
         'fetch_success': False,
@@ -678,7 +675,7 @@ def fetch_grade_and_store_it_automation_policies(falcon, db_adapter, cid, gradin
             result['passed_policies'], result['policies_count']
         )
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Error during fetch_grade_and_store_it_automation_policies: %s", e)
         import traceback
         logging.error(traceback.format_exc())

@@ -7,8 +7,12 @@ name = "falcon-policy-scoring"
 version = "1.6.0"
 description = "CrowdStrike Falcon policy analysis and grading tool"
 readme = "README.md"
+license = { file = "LICENSE.md" }
 requires-python = ">=3.8"
-authors = [{ name = "CrowdStrike" }]
+authors = [{ name = "CrowdStrike Community" }]
+maintainers = [
+    { name = "Scott MacGregor", email = "scott.macgregor@crowdstrike.com" },
+]
 dependencies = [
     "crowdstrike-falconpy>=1.5.4",
     "tinydb>=4.8.0",
@@ -16,6 +20,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "rich>=14.2.0",
     "python-dotenv>=1.0.0",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +37,11 @@ docs = ["sphinx>=8.2.3", "sphinx-autodoc-typehints>=3.2.0"]
 
 [project.scripts]
 policy-audit = "falcon_policy_scoring.__main__:main"
+
+[project.urls]
+homepage = "https://github.com/cs-shadowbq/falcon-policy-scoring"
+repository = "https://github.com/cs-shadowbq/falcon-policy-scoring"
+Tracker = "https://github.com/cs-shadowbq/falcon-policy-scoring/issues"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

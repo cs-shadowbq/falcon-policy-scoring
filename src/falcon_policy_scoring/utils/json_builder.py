@@ -37,7 +37,7 @@ def redact_sensitive_args(args: List[str]) -> List[str]:
     redacted_args = []
     skip_next = False
 
-    for i, arg in enumerate(args):
+    for arg in args:
         if skip_next:
             redacted_args.append('<redacted>')
             skip_next = False
@@ -52,7 +52,7 @@ def redact_sensitive_args(args: List[str]) -> List[str]:
                 is_sensitive = True
                 break
             # Check for --key value format (value is in next argument)
-            elif arg == sensitive_arg:
+            if arg == sensitive_arg:
                 redacted_args.append(arg)
                 skip_next = True
                 is_sensitive = True
@@ -64,6 +64,8 @@ def redact_sensitive_args(args: List[str]) -> List[str]:
     return redacted_args
 
 
+# Disable certain pylint warnings due to complexity of this function
+# pylint: disable=too-many-branches, too-many-locals, too-many-statements
 def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
     """Build structured JSON output matching the schema.
 
@@ -162,21 +164,30 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
             total_checks += checks_count
             total_failures += failures_count
 
-            policy_list.append({
+            policy_dict = {
                 "policy_id": policy.get('policy_id'),
                 "policy_name": policy.get('policy_name'),
                 "platform_name": policy.get('platform_name') or policy.get('target', 'Unknown'),
-                "passed": policy.get('passed', False),
+                "passed": policy.get('passed'),
                 "checks_count": checks_count,
                 "failures_count": failures_count,
                 "score_percentage": round(((checks_count - failures_count) / checks_count * 100), 2) if checks_count > 0 else 0,
                 "setting_results": policy.get('setting_results', [])
-            })
+            }
+
+            # Include grading_status and ungradable_reason if present
+            if 'grading_status' in policy:
+                policy_dict['grading_status'] = policy['grading_status']
+            if 'ungradable_reason' in policy:
+                policy_dict['ungradable_reason'] = policy['ungradable_reason']
+
+            policy_list.append(policy_dict)
 
         # Use shared function to calculate stats
         stats = calculate_policy_stats(policy_list)
         passed_count = stats['passed_count']
         failed_count = stats['failed_count']
+        ungradable_count = stats.get('ungradable_count', 0)
 
         # Calculate score for this policy type
         type_checks = sum(p['checks_count'] for p in policy_list)
@@ -190,6 +201,7 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
             "total_policies": len(policy_list),
             "passed_policies": passed_count,
             "failed_policies": failed_count,
+            "ungradable_policies": ungradable_count,
             "score_percentage": score_percentage,
             "graded_policies": policy_list
         }
@@ -197,6 +209,9 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
         output["summary"]["total_policies"] += len(policy_list)
         output["summary"]["passed_policies"] += passed_count
         output["summary"]["failed_policies"] += failed_count
+        if "ungradable_policies" not in output["summary"]:
+            output["summary"]["ungradable_policies"] = 0
+        output["summary"]["ungradable_policies"] += ungradable_count
 
     # Calculate overall score
     if total_checks > 0:
@@ -331,3 +346,5 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
         output["summary"]["hosts_any_failed"] = any_failed_count
 
     return output
+
+# pylint: enable=too-many-branches, too-many-locals, too-many-statements

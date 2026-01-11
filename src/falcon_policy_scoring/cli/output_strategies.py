@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 import json
+import csv
 
 
 class OutputStrategy(ABC):
@@ -15,12 +16,13 @@ class OutputStrategy(ABC):
             data: Data dictionary to output
             context: CLI context
         """
-        pass
 
 
 class TextOutputStrategy(OutputStrategy):
     """Strategy for text/table output."""
 
+    # Disable certain pylint warnings due to complexity of this function
+    # pylint: disable=too-many-branches, too-many-locals, too-many-statements, too-many-nested-blocks
     def output(self, data: Dict[str, Any], context) -> None:
         """Display data as Rich tables.
 
@@ -37,7 +39,7 @@ class TextOutputStrategy(OutputStrategy):
         )
         from .data_fetcher import collect_host_data, calculate_host_stats, find_host_by_name
         from .helpers import fetch_all_graded_policies, determine_policy_types_to_display, get_policy_status
-        from .constants import Style
+        from falcon_policy_scoring.utils.constants import Style
         from falcon_policy_scoring.utils.cache_helpers import (
             calculate_cache_age, get_hosts_ttl, is_cache_expired, format_cache_display_with_ttl
         )
@@ -243,12 +245,8 @@ class TextOutputStrategy(OutputStrategy):
 
             # Print helpful tips if minimal output
             if not args.show_policies and not args.show_hosts:
-                context.console.print(f"\n[{Style.YELLOW}]Use --help to show all available commands and options[/{Style.YELLOW}]")
-                context.console.print("[dim]Tip: Use --fetch to retrieve fresh data from CrowdStrike API[/dim]")
-                context.console.print("[dim]Tip: Use --show-policies to see policy grading tables[/dim]")
-                context.console.print("[dim]Tip: Use --show-hosts to see host-level policy status[/dim]")
-                context.console.print("[dim]Tip: Use --details to see detailed failure information[/dim]")
-                context.console.print("[dim]Tip: Use --output-format json to get machine-readable output[/dim]\n")
+                context.console.print(f"[{Style.YELLOW}]Use --help to show all available commands and options[/{Style.YELLOW}]\n")
+    # pylint: enable=too-many-branches, too-many-locals, too-many-statements, too-many-nested-blocks
 
 
 class JsonOutputStrategy(OutputStrategy):
@@ -283,17 +281,270 @@ class JsonOutputStrategy(OutputStrategy):
             print(json_str)
 
 
+class CsvOutputStrategy(OutputStrategy):
+    """Strategy for CSV output."""
+
+    def output(self, data: Dict[str, Any], context) -> None:
+        """Display data as CSV file(s).
+
+        Args:
+            data: Data dictionary containing adapter, cid, config, args
+            context: CLI context
+        """
+
+        from .helpers import fetch_all_graded_policies
+
+        adapter = data['adapter']
+        cid = data['cid']
+        config = data['config']
+        args = data['args']
+
+        # Get all graded policies
+        policy_records = fetch_all_graded_policies(adapter, cid)
+
+        # Determine base output path
+        base_output = args.output_file if args.output_file else 'output'
+
+        # Route based on command type
+        if args.command == 'host':
+            # Single host details with policies - wide format
+            self._output_host_details_csv(adapter, cid, args, policy_records, base_output, context)
+        elif args.command == 'hosts':
+            # Hosts summary table
+            self._output_hosts_csv(adapter, cid, config, args, policy_records, base_output, context)
+        else:
+            # Policy tables (policies command or default)
+            self._output_policies_csv(adapter, cid, args, policy_records, base_output, context)
+
+    def _output_policies_csv(self, adapter, cid, args, policy_records, base_output, context):
+        """Output policy tables as separate CSV files per policy type."""
+        from .filters import filter_policies
+        from .sorters import sort_policies
+        from .helpers import determine_policy_types_to_display
+
+        policy_types_to_display = determine_policy_types_to_display(args.policy_type)
+        policy_status = getattr(args, 'status', None)
+
+        files_created = []
+
+        for policy_type in policy_types_to_display:
+            graded_record = policy_records.get(policy_type)
+
+            if not graded_record or 'graded_policies' not in graded_record:
+                continue
+
+            # Filter and sort policies
+            policies = graded_record['graded_policies']
+            filtered_policies = filter_policies(policies, args.platform, policy_status)
+            sorted_policies = sort_policies(filtered_policies, args.sort_policies)
+
+            if not sorted_policies:
+                continue
+
+            # Generate filename: base_policytype_policies.csv
+            policy_type_clean = policy_type.replace('_', '-')
+            csv_filename = f"{base_output}_{policy_type_clean}_policies.csv"
+
+            # Write CSV
+            with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+
+                # Header row
+                headers = ['Platform', 'Policy Name', 'Score', 'Status', 'Total Checks', 'Passed', 'Failed']
+                writer.writerow(headers)
+
+                # Data rows
+                for policy in sorted_policies:
+                    status = policy.get('grading_status', 'ungradable').upper()
+                    checks_count = policy.get('checks_count', 0)
+                    failures_count = policy.get('failures_count', 0)
+                    # Calculate passed count: total checks - failures
+                    passed_count = checks_count - failures_count if checks_count > 0 else 0
+
+                    row = [
+                        policy.get('platform_name', 'Unknown'),
+                        policy.get('policy_name', 'Unknown'),
+                        f"{policy.get('score', 0):.1f}%" if policy.get('score') is not None else 'N/A',
+                        status,
+                        checks_count,
+                        passed_count,
+                        failures_count
+                    ]
+                    writer.writerow(row)
+
+            files_created.append(csv_filename)
+
+        if context.verbose and files_created:
+            for filename in files_created:
+                context.console.print(f"[green]CSV output written to: {filename}[/green]")
+
+    def _output_hosts_csv(self, adapter, cid, config, args, policy_records, base_output, context):
+        """Output hosts summary as single CSV file."""
+        from .filters import filter_hosts
+        from .sorters import sort_hosts
+        from .data_fetcher import collect_host_data
+        from .helpers import determine_policy_types_to_display
+
+        host_data = collect_host_data(adapter, cid, policy_records, config)
+        filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname)
+
+        if not filtered_hosts:
+            if context.verbose:
+                context.console.print("[yellow]No hosts match the specified filters[/yellow]")
+            return
+
+        sorted_hosts = sort_hosts(filtered_hosts, args.sort_hosts)
+        policy_types_to_display = determine_policy_types_to_display(args.policy_type)
+
+        # Generate filename
+        csv_filename = f"{base_output}_hosts.csv" if base_output != 'output' else "hosts.csv"
+
+        # Write CSV
+        with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+
+            # Build header row dynamically based on policy types to display
+            headers = ['Hostname', 'Platform']
+
+            # Map policy types to display names and status keys
+            policy_mappings = {
+                'prevention': ('Prevention', 'prevention_status'),
+                'sensor_update': ('Sensor Update', 'sensor_update_status'),
+                'content_update': ('Content Update', 'content_update_status'),
+                'firewall': ('Firewall', 'firewall_status'),
+                'device_control': ('Device Control', 'device_control_status'),
+                'it_automation': ('IT Automation', 'it_automation_status')
+            }
+
+            # Track which status keys we need
+            status_keys = []
+            for policy_type in policy_types_to_display:
+                if policy_type in policy_mappings:
+                    display_name, status_key = policy_mappings[policy_type]
+                    headers.append(display_name)
+                    status_keys.append(status_key)
+
+            writer.writerow(headers)
+
+            # Data rows
+            for host in sorted_hosts:
+                row = [
+                    host.get('hostname', 'Unknown'),
+                    host.get('platform', 'Unknown')
+                ]
+
+                for status_key in status_keys:
+                    status = host.get(status_key, 'UNKNOWN')
+                    row.append(status)
+
+                writer.writerow(row)
+
+        if context.verbose:
+            context.console.print(f"[green]CSV output written to: {csv_filename}[/green]")
+
+    def _output_host_details_csv(self, adapter, cid, args, policy_records, base_output, context):
+        """Output host details with policy information in wide format."""
+        from .data_fetcher import find_host_by_name
+        from .helpers import determine_policy_types_to_display, get_policy_status
+
+        host_info = find_host_by_name(adapter, cid, args.hostname)
+
+        if not host_info:
+            if context.verbose:
+                context.console.print(f"[yellow]Host '{args.hostname}' not found in database[/yellow]")
+            return
+
+        device_data = host_info['device_data']
+        device_policies = device_data.get('device_policies', {})
+
+        policy_types_to_display = determine_policy_types_to_display(args.policy_type)
+
+        # Generate filename
+        hostname_clean = args.hostname.replace(' ', '_').replace('.', '_')
+        csv_filename = f"{base_output}_{hostname_clean}_details.csv"
+
+        # Build policy ID to name lookup
+        policy_id_to_name = {}
+        for policy_type in policy_types_to_display:
+            graded_record = policy_records.get(policy_type)
+            if graded_record and 'graded_policies' in graded_record:
+                for policy in graded_record['graded_policies']:
+                    policy_id = policy.get('policy_id')
+                    policy_name = policy.get('policy_name')
+                    if policy_id and policy_name:
+                        policy_id_to_name[policy_id] = policy_name
+
+        # Write CSV
+        with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+
+            # Build header row
+            headers = ['Hostname', 'Device ID', 'Platform']
+
+            # Map policy types to display names
+            policy_display_names = {
+                'prevention': 'Prevention',
+                'sensor_update': 'Sensor Update',
+                'content_update': 'Content Update',
+                'firewall': 'Firewall',
+                'device_control': 'Device Control',
+                'it_automation': 'IT Automation'
+            }
+
+            for policy_type in policy_types_to_display:
+                display_name = policy_display_names.get(policy_type, policy_type.replace('_', ' ').title())
+                headers.extend([f"{display_name} Policy", f"{display_name} Status"])
+
+            writer.writerow(headers)
+
+            # Helper to locate policy info with hyphen/underscore variants
+            def _find_policy_info(policy_map, key):
+                candidates = [key, key.replace('_', '-'), key.replace('-', '_')]
+                for k in candidates:
+                    info = policy_map.get(k)
+                    if info:
+                        return info
+                return {}
+
+            # Data row
+            row = [
+                device_data.get('hostname', 'Unknown'),
+                host_info['device_id'],
+                device_data.get('platform_name', 'Unknown')
+            ]
+
+            for policy_type in policy_types_to_display:
+                graded_record = policy_records.get(policy_type)
+                policy_info = _find_policy_info(device_policies, policy_type)
+                policy_id = policy_info.get('policy_id')
+
+                # Look up policy name
+                policy_name = policy_id_to_name.get(policy_id) if policy_id else None
+                if not policy_name:
+                    policy_name = policy_info.get('policy_name', 'Not Assigned')
+
+                status = get_policy_status(policy_id, graded_record)
+
+                row.extend([policy_name, status])
+
+            writer.writerow(row)
+
+        if context.verbose:
+            context.console.print(f"[green]CSV output written to: {csv_filename}[/green]")
+
+
 def get_output_strategy(format_type: str) -> OutputStrategy:
     """Factory function to get output strategy.
 
     Args:
-        format_type: Output format type ('text' or 'json')
+        format_type: Output format type ('text', 'json', or 'csv')
 
     Returns:
         OutputStrategy instance
     """
     strategies = {
         'text': TextOutputStrategy(),
-        'json': JsonOutputStrategy()
+        'json': JsonOutputStrategy(),
+        'csv': CsvOutputStrategy()
     }
     return strategies.get(format_type, TextOutputStrategy())

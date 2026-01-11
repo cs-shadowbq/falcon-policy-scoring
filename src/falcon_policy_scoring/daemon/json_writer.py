@@ -284,7 +284,7 @@ class JsonWriter:
             if deleted_count > 0:
                 logger.info("Cleaned up %s old report files", deleted_count)
 
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             logger.error("Error cleaning up old files: %s", e)
 
         return deleted_count

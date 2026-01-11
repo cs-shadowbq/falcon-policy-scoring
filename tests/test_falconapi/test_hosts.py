@@ -57,7 +57,7 @@ class TestHostsInitialization:
         hosts = Hosts(
             cid='test-cid',
             falcon=mock_falcon,
-            filter="last_seen:>'2024-01-01'"
+            filter_str="last_seen:>'2024-01-01'"
         )
 
         assert "last_seen:>'2024-01-01'" in hosts.filter
@@ -96,7 +96,7 @@ class TestHostsInitialization:
             cid='test-cid',
             falcon=mock_falcon,
             device_ids=device_ids,
-            filter="last_seen:>'2024-01-01'"
+            filter_str="last_seen:>'2024-01-01'"
         )
 
         # Large list with other filters should NOT be in FQL
@@ -116,7 +116,7 @@ class TestHostsInitialization:
         hosts = Hosts(
             cid='test-cid',
             falcon=mock_falcon,
-            filter="last_seen:>'2024-01-01'",
+            filter_str="last_seen:>'2024-01-01'",
             product_types=['Workstation']
         )
 
@@ -589,7 +589,7 @@ class TestHostsClientSideFiltering:
             cid='test-cid',
             falcon=mock_falcon,
             device_ids=list(device_ids_filter),
-            filter="last_seen:>'2024-01-01'"
+            filter_str="last_seen:>'2024-01-01'"
         )
 
         result = hosts.get_devices()

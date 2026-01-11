@@ -10,7 +10,6 @@ class PolicyScoringError(Exception):
 
     All custom exceptions in the project should inherit from this base class.
     """
-    pass
 
 
 class ConfigurationError(PolicyScoringError):
@@ -22,7 +21,6 @@ class ConfigurationError(PolicyScoringError):
     - Configuration values are out of acceptable range
     - YAML parsing fails
     """
-    pass
 
 
 class ApiConnectionError(PolicyScoringError):
@@ -34,7 +32,6 @@ class ApiConnectionError(PolicyScoringError):
     - Network timeout occurs
     - API endpoint is unreachable
     """
-    pass
 
 
 class ApiError(PolicyScoringError):
@@ -46,7 +43,6 @@ class ApiError(PolicyScoringError):
     - Rate limit exceeded
     - Invalid API request parameters
     """
-    pass
 
 
 class DatabaseError(PolicyScoringError):
@@ -59,7 +55,6 @@ class DatabaseError(PolicyScoringError):
     - Transaction fails
     - Database is locked
     """
-    pass
 
 
 class DataNotFoundError(PolicyScoringError):
@@ -71,7 +66,6 @@ class DataNotFoundError(PolicyScoringError):
     - Cache is empty
     - Required data is missing from API response
     """
-    pass
 
 
 class GradingError(PolicyScoringError):
@@ -83,7 +77,6 @@ class GradingError(PolicyScoringError):
     - Cannot calculate policy score
     - Grading criteria cannot be evaluated
     """
-    pass
 
 
 class ReportGenerationError(PolicyScoringError):
@@ -95,7 +88,6 @@ class ReportGenerationError(PolicyScoringError):
     - JSON serialization fails
     - Output directory is not writable
     """
-    pass
 
 
 class SchedulerError(PolicyScoringError):
@@ -107,7 +99,6 @@ class SchedulerError(PolicyScoringError):
     - Task execution fails
     - Scheduler state is inconsistent
     """
-    pass
 
 
 class RateLimitError(PolicyScoringError):
@@ -118,7 +109,6 @@ class RateLimitError(PolicyScoringError):
     - Rate limiter timeout
     - Cannot acquire rate limiter capacity
     """
-    pass
 
 
 class ValidationError(PolicyScoringError):
@@ -130,7 +120,6 @@ class ValidationError(PolicyScoringError):
     - Required fields are missing
     - Data type mismatch
     """
-    pass
 
 
 # Backwards compatibility aliases (to be deprecated)

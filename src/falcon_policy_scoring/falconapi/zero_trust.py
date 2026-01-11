@@ -73,7 +73,7 @@ def fetch_zero_trust_assessments(falcon, device_ids: List[str]) -> Dict:
                     'batch_start': i
                 })
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         error_msg = f"Exception during ZTA fetch: {str(e)}"
         logging.error(error_msg)
         errors.append({
@@ -132,17 +132,17 @@ def query_assessments_by_score(falcon, filter_expr: str = "score:>=0",
                 'count': len(resources),
                 'total': total
             }
-        else:
-            error_msg = f"ZTA query failed: status {response['status_code']}"
-            logging.error(error_msg)
-            return {
-                'results': [],
-                'count': 0,
-                'total': 0,
-                'error': error_msg
-            }
 
-    except Exception as e:
+        error_msg = f"ZTA query failed: status {response['status_code']}"
+        logging.error(error_msg)
+        return {
+            'results': [],
+            'count': 0,
+            'total': 0,
+            'error': error_msg
+        }
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
         error_msg = f"Exception during ZTA query: {str(e)}"
         logging.error(error_msg)
         return {
@@ -175,13 +175,13 @@ def get_audit_report(falcon) -> Optional[Dict]:
             if resources:
                 logging.info("ZTA audit report retrieved")
                 return resources[0]  # Should be single resource with CID-level data
-            else:
-                logging.warning("ZTA audit report returned no resources")
-                return None
-        else:
-            logging.error("Failed to fetch ZTA audit: status %s", response['status_code'])
+
+            logging.warning("ZTA audit report returned no resources")
             return None
 
-    except Exception as e:
+        logging.error("Failed to fetch ZTA audit: status %s", response['status_code'])
+        return None
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Exception fetching ZTA audit: %s", str(e))
         return None

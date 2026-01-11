@@ -105,7 +105,7 @@ class PolicyTypeRegistry:
 
 
 # Global registry instance
-_registry = None
+_REGISTRY = PolicyTypeRegistry()
 
 
 def get_policy_registry() -> PolicyTypeRegistry:
@@ -114,7 +114,4 @@ def get_policy_registry() -> PolicyTypeRegistry:
     Returns:
         Singleton PolicyTypeRegistry instance
     """
-    global _registry
-    if _registry is None:
-        _registry = PolicyTypeRegistry()
-    return _registry
+    return _REGISTRY
