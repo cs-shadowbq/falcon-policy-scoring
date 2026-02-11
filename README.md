@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![Container](https://img.shields.io/badge/container-UBI9-red.svg)](https://catalog.redhat.com/software/containers/ubi9/python-312/657b08d023df896ebfacf402)
+[![Tests](https://github.com/cs-shadowbq/falcon-policy-scoring/actions/workflows/test.yml/badge.svg)](https://github.com/cs-shadowbq/falcon-policy-scoring/actions/workflows/test.yml)
 
 **Falcon Policy Audit** automatically evaluates your CrowdStrike security policies against best practices, identifies configuration drift, and provides actionable compliance reports. Run it as a CLI tool for ad-hoc audits or deploy as a daemon for continuous monitoring in Docker/Kubernetes.
 
