@@ -25,6 +25,7 @@ ttl:
     content_policy: 600
     rtr_policy: 600
     it_automation_policies: 600 # IT automation policies TTL in seconds
+    ods_scheduled_scan_policies: 600 # ODS Scheduled Scan policies TTL in seconds
 
 # Falcon API Credentials (replace with your values)
 falcon_credentials:
@@ -77,6 +78,7 @@ daemon:
     - firewall
     - device-control
     - it-automation
+    - ods-scheduled-scan
 
   # Product types to include when fetching hosts
   # Empty list or omit to use default (Workstation, Domain Controller, Server)

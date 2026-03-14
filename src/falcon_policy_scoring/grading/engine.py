@@ -11,7 +11,8 @@ from falcon_policy_scoring.grading.graders import (
     grade_all_content_update_policies,
     grade_all_firewall_policies,
     grade_all_device_control_policies,
-    grade_all_it_automation_policies
+    grade_all_it_automation_policies,
+    grade_all_ods_scheduled_scans
 )
 
 
@@ -161,6 +162,7 @@ POLICY_GRADERS = {
     'firewall': grade_all_firewall_policies,
     'device_control': grade_all_device_control_policies,
     'it_automation': grade_all_it_automation_policies,
+    'ods_scheduled_scan': grade_all_ods_scheduled_scans,
 }
 
 # Policy type to default config name mapping
@@ -171,4 +173,5 @@ DEFAULT_GRADING_CONFIGS = {
     'firewall': 'firewall_policies',
     'device_control': 'device_control_policies',
     'it_automation': 'it_automation_policies',
+    'ods_scheduled_scan': 'ods_scheduled_scan_policies',
 }

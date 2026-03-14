@@ -102,6 +102,18 @@ class SQLiteAdapter(DatabaseAdapter):
             )
         ''')
 
+        # ODS scan coverage index table
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ods_scan_coverage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                cid TEXT NOT NULL,
+                coverage_index TEXT NOT NULL,
+                count INTEGER NOT NULL,
+                epoch INTEGER NOT NULL
+            )
+        ''')
+
         # Zero Trust Assessment table
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS host_zta (
@@ -119,6 +131,7 @@ class SQLiteAdapter(DatabaseAdapter):
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_graded_policies_type_cid ON graded_policies(policy_type, cid)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_firewall_containers_key ON firewall_policy_containers(key)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_device_control_settings_key ON device_control_policy_settings(key)')
+        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_ods_scan_coverage_key ON ods_scan_coverage(key)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_host_zta_device_id ON host_zta(device_id)')
 
         self.conn.commit()
@@ -634,6 +647,81 @@ class SQLiteAdapter(DatabaseAdapter):
             return result
         else:
             logging.info(f"device_control_policy_settings record for CID {cid} NOT Found.")
+            return None
+
+    def put_ods_scan_coverage(self, cid, coverage_index):
+        """
+        Store ODS scan coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+            coverage_index: Dict mapping device_id -> list of scan IDs
+
+        Returns:
+            int: Row ID in database
+        """
+        key = f"ods_scan_coverage_{cid}"
+        epoch = epoch_now()
+        coverage_json = json.dumps(coverage_index)
+        count = len(coverage_index)
+
+        self.cursor.execute('''
+            SELECT id FROM ods_scan_coverage
+            WHERE key = ?
+        ''', (key,))
+
+        existing = self.cursor.fetchone()
+
+        if existing:
+            row_id = existing['id']
+            self.cursor.execute('''
+                UPDATE ods_scan_coverage
+                SET cid = ?, coverage_index = ?, count = ?, epoch = ?
+                WHERE key = ?
+            ''', (cid, coverage_json, count, epoch, key))
+            logging.info(f"SQLite ods_scan_coverage record updated for CID {cid} with {count} devices")
+        else:
+            self.cursor.execute('''
+                INSERT INTO ods_scan_coverage (key, cid, coverage_index, count, epoch)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (key, cid, coverage_json, count, epoch))
+            row_id = self.cursor.lastrowid
+            logging.info(f"SQLite ods_scan_coverage record created for CID {cid} with {count} devices, row_id {row_id}")
+
+        self.conn.commit()
+        return row_id
+
+    def get_ods_scan_coverage(self, cid):
+        """
+        Get ODS scan coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+
+        Returns:
+            dict: The coverage record with 'coverage_index' map, or None if not found
+        """
+        key = f"ods_scan_coverage_{cid}"
+
+        self.cursor.execute('''
+            SELECT key, cid, coverage_index, count, epoch
+            FROM ods_scan_coverage
+            WHERE key = ?
+        ''', (key,))
+
+        row = self.cursor.fetchone()
+        if row:
+            result = {
+                'key': row['key'],
+                'cid': row['cid'],
+                'coverage_index': json.loads(row['coverage_index']),
+                'count': row['count'],
+                'epoch': row['epoch']
+            }
+            logging.info(f"ods_scan_coverage record for CID {cid} found with {result['count']} devices.")
+            return result
+        else:
+            logging.info(f"ods_scan_coverage record for CID {cid} NOT Found.")
             return None
 
     # CID Caching

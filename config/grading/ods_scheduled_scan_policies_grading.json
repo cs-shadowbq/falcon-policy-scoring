@@ -1,0 +1,31 @@
+{
+  "platform_requirements": [
+    {
+      "platform_name": "Windows",
+      "policy_requirements": {
+        "status": "scheduled",
+        "schedule": {
+          "interval": {
+            "maximum": 7
+          }
+        },
+        "cloud_ml_level_detection": {
+          "minimum": 2
+        },
+        "sensor_ml_level_detection": {
+          "minimum": 2
+        },
+        "cloud_ml_level_prevention": {
+          "minimum": 2
+        },
+        "sensor_ml_level_prevention": {
+          "minimum": 2
+        },
+        "cloud_pup_adware_level_prevention": {
+          "minimum": 2
+        },
+        "quarantine": true
+      }
+    }
+  ]
+}

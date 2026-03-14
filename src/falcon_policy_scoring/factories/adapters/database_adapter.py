@@ -159,6 +159,30 @@ class DatabaseAdapter(ABC):
         """Get device control policy settings for a CID."""
         pass
 
+    # 'ods_scan_coverage' Table (index of device_id -> [scan_ids] for ODS scheduled scans)
+
+    @abstractmethod
+    def put_ods_scan_coverage(self, cid, coverage_index):
+        """Store ODS scan coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+            coverage_index: Dict mapping device_id -> list of scan IDs
+        """
+        pass
+
+    @abstractmethod
+    def get_ods_scan_coverage(self, cid):
+        """Get ODS scan coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+
+        Returns:
+            dict with 'coverage_index' key, or None if not found
+        """
+        pass
+
     # CID Caching
 
     @abstractmethod

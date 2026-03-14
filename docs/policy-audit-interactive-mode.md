@@ -256,7 +256,7 @@ policy-audit fetch [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `-t, --type` | Policy type(s): `all` or comma-separated list (e.g., `prevention,firewall`) - choices: `prevention`, `sensor-update`, `content-update`, `firewall`, `device-control`, `it-automation` (default: `all`) |
+| `-t, --type` | Policy type(s): `all` or comma-separated list (e.g., `prevention,firewall`)|
 | `--product-types` | Comma-separated product types (default: `Workstation,Domain Controller,Server`) |
 | `--host-groups` | Comma-separated list of host group names to filter hosts (e.g., `"Production Servers,Development"`) |
 | `--last-seen` | Filter hosts by last seen time: `hour`, `12 hours`, `day`, or `week` |
@@ -360,6 +360,7 @@ The host summary shows:
 - Firewall policy status
 - Device Control policy status
 - IT Automation policy status
+- ODS Scheduled Scan policy status
 
 Status values:
 
