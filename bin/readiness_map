@@ -46,6 +46,7 @@ def transform_host_to_readiness(host):
         "agent_product_name": "falcon",
         "agent_version": host_record.get('agent_version', ''),
         "agent_status": agent_status,
+        "tags": host_record.get('tags', []),
         "firewall_status": policy_status.get('firewall', {}).get('status', ''),
         "usb_device_control": policy_status.get('device_control', {}).get('status', ''),
         "behavioral_ips_detections": policy_status.get('prevention', {}).get('status', ''),
