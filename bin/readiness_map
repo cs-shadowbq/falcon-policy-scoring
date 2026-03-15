@@ -52,8 +52,8 @@ def transform_host_to_readiness(host):
         "behavioral_ips_detections": policy_status.get('prevention', {}).get('status', ''),
         "behavioral_ips_preventions": policy_status.get('prevention', {}).get('status', ''),
         "antimalware_lastupdate": policy_status.get('content_update', {}).get('status', ''),
-        "antimalware_lastquickscan": "",  # Not available in source data
-        "antimalware_lastfullscan": "",  # Not available in source data
+        "antimalware_lastquickscan": policy_status.get('ods_scheduled_scan', {}).get('last_compliant_scan', ''),
+        "antimalware_lastfullscan": policy_status.get('ods_scheduled_scan', {}).get('last_compliant_scan', ''),
         "antimalware_downloadscanning": policy_status.get('prevention', {}).get('status', ''),
         "antimalware_on_access_scanning": policy_status.get('prevention', {}).get('status', ''),
         "antimalware_signatureversion": policy_status.get('content_update', {}).get('status', ''),

@@ -102,6 +102,7 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
     # Load ODS scan coverage index once before iterating hosts
     ods_coverage_record = adapter.get_ods_scan_coverage(cid)
     ods_coverage_index = ods_coverage_record.get('coverage_index', {}) if ods_coverage_record else {}
+    ods_last_compliant_scan_times = ods_coverage_record.get('last_compliant_scan_times', {}) if ods_coverage_record else {}
 
     host_rows = []
 
@@ -139,6 +140,7 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
         ods_scheduled_scan_status = _get_ods_status(
             device_id, platform, policy_records.get('ods_scheduled_scan'), ods_coverage_index
         )
+        ods_last_compliant_scan = ods_last_compliant_scan_times.get(device_id, '')
 
         # Fetch Zero Trust Assessment data (if enabled)
         zta_assessment = None
@@ -171,6 +173,7 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
             'device_control_status': device_control_status,
             'it_automation_status': it_automation_status,
             'ods_scheduled_scan_status': ods_scheduled_scan_status,
+            'ods_last_compliant_scan': ods_last_compliant_scan,
             'zta_assessment': zta_assessment,
             'all_passed': all_policies_passed,
             'any_failed': has_any_failed,

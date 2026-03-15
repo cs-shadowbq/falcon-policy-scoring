@@ -147,6 +147,90 @@ def fetch_all_scheduled_scans(falcon, db_adapter, cid: str) -> Dict:
     return result
 
 
+def fetch_last_compliant_scan_times(falcon, passing_scan_ids: set) -> Dict[str, str]:
+    """
+    Query scan run history and return the latest completion timestamp per host
+    for runs that belong to a passing scheduled scan.
+
+    Scheduled scan metadata always reflects scheduling state ('scheduled'), not
+    run history.  Actual per-host completion timestamps live in scan run objects
+    returned by query_scans / get_scans_by_scan_ids, linked back to their source
+    scheduled scan via run['profile_id'].
+
+    Args:
+        falcon: FalconPy APIHarnessV2 instance
+        passing_scan_ids: Set of scheduled scan IDs whose grading passed
+
+    Returns:
+        Dict mapping device_id -> ISO-8601 timestamp of latest completed run
+        on a passing policy.  Empty dict if no runs found or API error.
+    """
+    if not passing_scan_ids:
+        return {}
+
+    # Step 1: gather all scan run IDs
+    all_run_ids = []
+    offset = 0
+    limit = 500
+    while True:
+        response = falcon.command('query_scans', limit=limit, offset=offset)
+        if response.get('status_code') != 200:
+            logging.warning(
+                "Failed to query scan runs (status %s): %s",
+                response.get('status_code'), response.get('body', {})
+            )
+            return {}
+        batch_ids = response['body'].get('resources', [])
+        all_run_ids.extend(batch_ids)
+        meta = response['body'].get('meta', {})
+        total = meta.get('pagination', {}).get('total', 0)
+        if not batch_ids or offset + limit >= total:
+            break
+        offset += limit
+
+    if not all_run_ids:
+        logging.info("No scan runs found")
+        return {}
+
+    logging.info("Found %d scan run IDs, fetching details...", len(all_run_ids))
+
+    # Step 2: fetch run details in batches
+    all_runs = []
+    for i in range(0, len(all_run_ids), 100):
+        batch = all_run_ids[i:i + 100]
+        response = falcon.command('get_scans_by_scan_ids', ids=batch)
+        if response.get('status_code') != 200:
+            logging.warning(
+                "Failed to fetch scan run batch (status %s): %s",
+                response.get('status_code'), response.get('body', {})
+            )
+            continue
+        all_runs.extend(response['body'].get('resources', []))
+
+    # Step 3: for runs linked to a passing scheduled scan, collect latest
+    # completed timestamp per host
+    last_times: Dict[str, str] = {}
+    for run in all_runs:
+        profile_id = run.get('profile_id')
+        if profile_id not in passing_scan_ids:
+            continue
+        for host_meta in run.get('metadata', []):
+            if host_meta.get('status') != 'completed':
+                continue
+            device_id = host_meta.get('host_id')
+            ts = host_meta.get('last_updated', '')
+            if device_id and ts:
+                existing = last_times.get(device_id, '')
+                if ts > existing:
+                    last_times[device_id] = ts
+
+    logging.info(
+        "Last compliant scan times built: %d hosts with completed timestamp",
+        len(last_times)
+    )
+    return last_times
+
+
 def build_host_coverage_index(falcon, scans: List[Dict]) -> Dict[str, List[str]]:
     """
     Build an index mapping device_id -> [scan_id, ...] by expanding host groups.

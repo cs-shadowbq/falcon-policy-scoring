@@ -502,13 +502,15 @@ class TinyDBAdapter(DatabaseAdapter):
             logging.info(f"{table_name} record for CID {cid} NOT Found.")
             return None
 
-    def put_ods_scan_coverage(self, cid, coverage_index):
+    def put_ods_scan_coverage(self, cid, coverage_index, last_compliant_scan_times=None):
         """
         Store ODS scan coverage index for a CID.
 
         Args:
             cid: Customer ID
             coverage_index: Dict mapping device_id -> list of scan IDs
+            last_compliant_scan_times: Optional dict mapping device_id -> ISO timestamp
+                                       of last completed scan on a passing policy
 
         Returns:
             int: Document ID in database
@@ -526,7 +528,8 @@ class TinyDBAdapter(DatabaseAdapter):
             'cid': cid,
             'coverage_index': coverage_index,
             'count': len(coverage_index),
-            'epoch': epoch_now()
+            'epoch': epoch_now(),
+            'last_compliant_scan_times': last_compliant_scan_times or {}
         }
 
         if existing:
@@ -562,6 +565,10 @@ class TinyDBAdapter(DatabaseAdapter):
                 result = sorted(result, key=lambda x: x.get('epoch', 0))[-1]
             else:
                 result = result[0]
+
+            # Backfill key missing in older records
+            if 'last_compliant_scan_times' not in result:
+                result['last_compliant_scan_times'] = {}
 
             logging.info(f"{table_name} record for CID {cid} found with {result.get('count', 0)} devices.")
             return result

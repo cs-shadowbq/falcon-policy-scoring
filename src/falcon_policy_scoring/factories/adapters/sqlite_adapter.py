@@ -113,6 +113,11 @@ class SQLiteAdapter(DatabaseAdapter):
                 epoch INTEGER NOT NULL
             )
         ''')
+        # Add last_compliant_scan_times column if it does not yet exist (migration)
+        try:
+            self.cursor.execute('ALTER TABLE ods_scan_coverage ADD COLUMN last_compliant_scan_times TEXT')
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass  # Column already exists
 
         # Zero Trust Assessment table
         self.cursor.execute('''
@@ -649,13 +654,15 @@ class SQLiteAdapter(DatabaseAdapter):
             logging.info(f"device_control_policy_settings record for CID {cid} NOT Found.")
             return None
 
-    def put_ods_scan_coverage(self, cid, coverage_index):
+    def put_ods_scan_coverage(self, cid, coverage_index, last_compliant_scan_times=None):
         """
         Store ODS scan coverage index for a CID.
 
         Args:
             cid: Customer ID
             coverage_index: Dict mapping device_id -> list of scan IDs
+            last_compliant_scan_times: Optional dict mapping device_id -> ISO timestamp
+                                       of last completed scan on a passing policy
 
         Returns:
             int: Row ID in database
@@ -663,6 +670,7 @@ class SQLiteAdapter(DatabaseAdapter):
         key = f"ods_scan_coverage_{cid}"
         epoch = epoch_now()
         coverage_json = json.dumps(coverage_index)
+        times_json = json.dumps(last_compliant_scan_times or {})
         count = len(coverage_index)
 
         self.cursor.execute('''
@@ -676,15 +684,15 @@ class SQLiteAdapter(DatabaseAdapter):
             row_id = existing['id']
             self.cursor.execute('''
                 UPDATE ods_scan_coverage
-                SET cid = ?, coverage_index = ?, count = ?, epoch = ?
+                SET cid = ?, coverage_index = ?, count = ?, epoch = ?, last_compliant_scan_times = ?
                 WHERE key = ?
-            ''', (cid, coverage_json, count, epoch, key))
+            ''', (cid, coverage_json, count, epoch, times_json, key))
             logging.info(f"SQLite ods_scan_coverage record updated for CID {cid} with {count} devices")
         else:
             self.cursor.execute('''
-                INSERT INTO ods_scan_coverage (key, cid, coverage_index, count, epoch)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (key, cid, coverage_json, count, epoch))
+                INSERT INTO ods_scan_coverage (key, cid, coverage_index, count, epoch, last_compliant_scan_times)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (key, cid, coverage_json, count, epoch, times_json))
             row_id = self.cursor.lastrowid
             logging.info(f"SQLite ods_scan_coverage record created for CID {cid} with {count} devices, row_id {row_id}")
 
@@ -704,19 +712,21 @@ class SQLiteAdapter(DatabaseAdapter):
         key = f"ods_scan_coverage_{cid}"
 
         self.cursor.execute('''
-            SELECT key, cid, coverage_index, count, epoch
+            SELECT key, cid, coverage_index, count, epoch, last_compliant_scan_times
             FROM ods_scan_coverage
             WHERE key = ?
         ''', (key,))
 
         row = self.cursor.fetchone()
         if row:
+            times_raw = row['last_compliant_scan_times'] if 'last_compliant_scan_times' in row.keys() else None
             result = {
                 'key': row['key'],
                 'cid': row['cid'],
                 'coverage_index': json.loads(row['coverage_index']),
                 'count': row['count'],
-                'epoch': row['epoch']
+                'epoch': row['epoch'],
+                'last_compliant_scan_times': json.loads(times_raw) if times_raw else {}
             }
             logging.info(f"ods_scan_coverage record for CID {cid} found with {result['count']} devices.")
             return result

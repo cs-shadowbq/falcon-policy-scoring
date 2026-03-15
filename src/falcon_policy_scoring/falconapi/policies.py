@@ -784,9 +784,24 @@ def fetch_grade_and_store_ods_scheduled_scan_policies(falcon, db_adapter, cid, g
         result['passed_policies'] = sum(1 for r in graded_results if r.get('passed', False))
         result['failed_policies'] = len(graded_results) - result['passed_policies']
 
+        # Step 6: Build per-host last compliant scan timestamps from scan run history.
+        # Scheduled scan metadata always stays 'scheduled' (next-run state only).
+        # Actual completion timestamps live in scan run objects, linked to the
+        # source scheduled scan via run['profile_id'].
+        logging.info("Step 6: Fetching scan run history for compliant scan timestamps...")
+        passing_scan_ids = {
+            r['policy_id'] for r in graded_results
+            if r.get('passed', False) and r.get('policy_id')
+        }
+        last_compliant_scan_times = ods_module.fetch_last_compliant_scan_times(
+            falcon, passing_scan_ids
+        )
+
+        db_adapter.put_ods_scan_coverage(cid, coverage_index, last_compliant_scan_times)
         logging.info(
-            "ODS grading complete: %s/%s scans passed, %d devices covered",
-            result['passed_policies'], result['policies_count'], len(coverage_index)
+            "ODS grading complete: %s/%s scans passed, %d devices covered, %d with compliant scan timestamp",
+            result['passed_policies'], result['policies_count'],
+            len(coverage_index), len(last_compliant_scan_times)
         )
 
     except Exception as e:  # pylint: disable=broad-exception-caught

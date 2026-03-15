@@ -162,12 +162,14 @@ class DatabaseAdapter(ABC):
     # 'ods_scan_coverage' Table (index of device_id -> [scan_ids] for ODS scheduled scans)
 
     @abstractmethod
-    def put_ods_scan_coverage(self, cid, coverage_index):
+    def put_ods_scan_coverage(self, cid, coverage_index, last_compliant_scan_times=None):
         """Store ODS scan coverage index for a CID.
 
         Args:
             cid: Customer ID
             coverage_index: Dict mapping device_id -> list of scan IDs
+            last_compliant_scan_times: Optional dict mapping device_id -> ISO timestamp
+                                       of last completed scan on a passing policy
         """
         pass
 
