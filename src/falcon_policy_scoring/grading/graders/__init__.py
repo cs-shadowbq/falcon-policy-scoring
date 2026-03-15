@@ -26,6 +26,10 @@ from falcon_policy_scoring.grading.graders.it_automation import (
     grade_it_automation_policy,
     grade_all_it_automation_policies
 )
+from falcon_policy_scoring.grading.graders.ods_scheduled_scan import (
+    grade_ods_scheduled_scan,
+    grade_all_ods_scheduled_scans
+)
 
 __all__ = [
     'grade_prevention_policy',
@@ -40,4 +44,6 @@ __all__ = [
     'grade_all_device_control_policies',
     'grade_it_automation_policy',
     'grade_all_it_automation_policies',
+    'grade_ods_scheduled_scan',
+    'grade_all_ods_scheduled_scans',
 ]

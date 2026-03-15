@@ -28,6 +28,8 @@ The tool examines six types of security policies:
 
 **IT automation policies** govern remote access and scripting capabilities. The tool confirms these powerful features are properly restricted. Misconfigured automation policies let attackers gain elevated access. [Learn more about IT automation policy grading](it-automation-policies.md).
 
+**ODS scheduled scans** run periodic full-filesystem scans on Windows devices, checking dormant files that real-time protection may never have inspected. The tool verifies that scans run at least weekly, target the full filesystem, use adequate machine learning levels for both detection and prevention, and have quarantine enabled. This feature is Windows-only; Mac and Linux hosts receive an N/A status. [Learn more about ODS scheduled scan grading](ods-scans.md).
+
 ## Additonal Data
 
 To provide context for policy grading, the tool also collects:

@@ -502,6 +502,80 @@ class TinyDBAdapter(DatabaseAdapter):
             logging.info(f"{table_name} record for CID {cid} NOT Found.")
             return None
 
+    def put_ods_scan_coverage(self, cid, coverage_index, last_compliant_scan_times=None):
+        """
+        Store ODS scan coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+            coverage_index: Dict mapping device_id -> list of scan IDs
+            last_compliant_scan_times: Optional dict mapping device_id -> ISO timestamp
+                                       of last completed scan on a passing policy
+
+        Returns:
+            int: Document ID in database
+        """
+        table_name = 'ods_scan_coverage'
+        q = Query()
+        db_coverage = self.db.table(table_name, cache_size=0)
+
+        key = f"ods_scan_coverage_{cid}"
+
+        existing = db_coverage.search(q.key == key)
+
+        record = {
+            'key': key,
+            'cid': cid,
+            'coverage_index': coverage_index,
+            'count': len(coverage_index),
+            'epoch': epoch_now(),
+            'last_compliant_scan_times': last_compliant_scan_times or {}
+        }
+
+        if existing:
+            doc_id = existing[0].doc_id
+            db_coverage.update(record, doc_ids=[doc_id])
+            logging.info(f"TinyDB {table_name} record updated for CID {cid} with {len(coverage_index)} devices")
+            return doc_id
+        else:
+            doc_id = db_coverage.insert(record)
+            logging.info(f"TinyDB {table_name} record created for CID {cid} with {len(coverage_index)} devices, doc_id {doc_id}")
+            return doc_id
+
+    def get_ods_scan_coverage(self, cid):
+        """
+        Get ODS scan coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+
+        Returns:
+            dict: The coverage record with 'coverage_index' map, or None if not found
+        """
+        table_name = 'ods_scan_coverage'
+        q = Query()
+        db_coverage = self.db.table(table_name, cache_size=0)
+
+        key = f"ods_scan_coverage_{cid}"
+        result = db_coverage.search(q.key == key)
+
+        if result:
+            if len(result) > 1:
+                logging.warning(f"Multiple {table_name} records found for CID {cid}.")
+                result = sorted(result, key=lambda x: x.get('epoch', 0))[-1]
+            else:
+                result = result[0]
+
+            # Backfill key missing in older records
+            if 'last_compliant_scan_times' not in result:
+                result['last_compliant_scan_times'] = {}
+
+            logging.info(f"{table_name} record for CID {cid} found with {result.get('count', 0)} devices.")
+            return result
+        else:
+            logging.info(f"{table_name} record for CID {cid} NOT Found.")
+            return None
+
     # CID Caching
 
     def put_cid(self, cid, base_url):

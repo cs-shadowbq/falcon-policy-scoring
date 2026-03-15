@@ -15,6 +15,7 @@ class PolicyTypeRegistry:
             fetch_grade_and_store_firewall_policies,
             fetch_grade_and_store_device_control_policies,
             fetch_grade_and_store_it_automation_policies,
+            fetch_grade_and_store_ods_scheduled_scan_policies,
         )
 
         self._registry = {
@@ -59,7 +60,14 @@ class PolicyTypeRegistry:
                 display_name='IT Automation',
                 cli_name='it-automation',
                 grader_func=fetch_grade_and_store_it_automation_policies
-            )
+            ),
+            'ods_scheduled_scan': PolicyTypeInfo(
+                db_key='ods_scheduled_scan_policies',
+                api_key='ods-scheduled-scan',
+                display_name='ODS Scheduled Scan',
+                cli_name='ods-scheduled-scan',
+                grader_func=fetch_grade_and_store_ods_scheduled_scan_policies
+            ),
         }
 
     def get(self, policy_type: str) -> Optional[PolicyTypeInfo]:

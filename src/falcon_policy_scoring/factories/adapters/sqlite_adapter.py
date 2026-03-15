@@ -102,6 +102,23 @@ class SQLiteAdapter(DatabaseAdapter):
             )
         ''')
 
+        # ODS scan coverage index table
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS ods_scan_coverage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT NOT NULL UNIQUE,
+                cid TEXT NOT NULL,
+                coverage_index TEXT NOT NULL,
+                count INTEGER NOT NULL,
+                epoch INTEGER NOT NULL
+            )
+        ''')
+        # Add last_compliant_scan_times column if it does not yet exist (migration)
+        try:
+            self.cursor.execute('ALTER TABLE ods_scan_coverage ADD COLUMN last_compliant_scan_times TEXT')
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass  # Column already exists
+
         # Zero Trust Assessment table
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS host_zta (
@@ -119,6 +136,7 @@ class SQLiteAdapter(DatabaseAdapter):
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_graded_policies_type_cid ON graded_policies(policy_type, cid)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_firewall_containers_key ON firewall_policy_containers(key)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_device_control_settings_key ON device_control_policy_settings(key)')
+        self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_ods_scan_coverage_key ON ods_scan_coverage(key)')
         self.cursor.execute('CREATE INDEX IF NOT EXISTS idx_host_zta_device_id ON host_zta(device_id)')
 
         self.conn.commit()
@@ -634,6 +652,86 @@ class SQLiteAdapter(DatabaseAdapter):
             return result
         else:
             logging.info(f"device_control_policy_settings record for CID {cid} NOT Found.")
+            return None
+
+    def put_ods_scan_coverage(self, cid, coverage_index, last_compliant_scan_times=None):
+        """
+        Store ODS scan coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+            coverage_index: Dict mapping device_id -> list of scan IDs
+            last_compliant_scan_times: Optional dict mapping device_id -> ISO timestamp
+                                       of last completed scan on a passing policy
+
+        Returns:
+            int: Row ID in database
+        """
+        key = f"ods_scan_coverage_{cid}"
+        epoch = epoch_now()
+        coverage_json = json.dumps(coverage_index)
+        times_json = json.dumps(last_compliant_scan_times or {})
+        count = len(coverage_index)
+
+        self.cursor.execute('''
+            SELECT id FROM ods_scan_coverage
+            WHERE key = ?
+        ''', (key,))
+
+        existing = self.cursor.fetchone()
+
+        if existing:
+            row_id = existing['id']
+            self.cursor.execute('''
+                UPDATE ods_scan_coverage
+                SET cid = ?, coverage_index = ?, count = ?, epoch = ?, last_compliant_scan_times = ?
+                WHERE key = ?
+            ''', (cid, coverage_json, count, epoch, times_json, key))
+            logging.info(f"SQLite ods_scan_coverage record updated for CID {cid} with {count} devices")
+        else:
+            self.cursor.execute('''
+                INSERT INTO ods_scan_coverage (key, cid, coverage_index, count, epoch, last_compliant_scan_times)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (key, cid, coverage_json, count, epoch, times_json))
+            row_id = self.cursor.lastrowid
+            logging.info(f"SQLite ods_scan_coverage record created for CID {cid} with {count} devices, row_id {row_id}")
+
+        self.conn.commit()
+        return row_id
+
+    def get_ods_scan_coverage(self, cid):
+        """
+        Get ODS scan coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+
+        Returns:
+            dict: The coverage record with 'coverage_index' map, or None if not found
+        """
+        key = f"ods_scan_coverage_{cid}"
+
+        self.cursor.execute('''
+            SELECT key, cid, coverage_index, count, epoch, last_compliant_scan_times
+            FROM ods_scan_coverage
+            WHERE key = ?
+        ''', (key,))
+
+        row = self.cursor.fetchone()
+        if row:
+            times_raw = row['last_compliant_scan_times'] if 'last_compliant_scan_times' in row.keys() else None
+            result = {
+                'key': row['key'],
+                'cid': row['cid'],
+                'coverage_index': json.loads(row['coverage_index']),
+                'count': row['count'],
+                'epoch': row['epoch'],
+                'last_compliant_scan_times': json.loads(times_raw) if times_raw else {}
+            }
+            logging.info(f"ods_scan_coverage record for CID {cid} found with {result['count']} devices.")
+            return result
+        else:
+            logging.info(f"ods_scan_coverage record for CID {cid} NOT Found.")
             return None
 
     # CID Caching

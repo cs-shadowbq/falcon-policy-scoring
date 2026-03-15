@@ -6,6 +6,51 @@ Shared between CLI and daemon modules.
 from typing import Dict, List, Optional
 
 
+def _get_ods_status(device_id: str, platform: str, graded_ods_record: Optional[Dict],
+                    coverage_index: Dict) -> str:
+    """Determine ODS scheduled scan status for a single host.
+
+    ODS scheduled scans are Windows-only. Non-Windows hosts receive 'N/A'.
+    Windows hosts without coverage receive 'FAILED'.
+
+    Args:
+        device_id: Host device ID
+        platform: Host platform name (e.g., 'Windows', 'Linux', 'Mac')
+        graded_ods_record: Graded ODS policies record from database, or None
+        coverage_index: Dict mapping device_id -> [scan_id, ...]
+
+    Returns:
+        Status string: 'PASSED', 'FAILED', 'NOT GRADED', or 'N/A'
+    """
+    if platform != 'Windows':
+        return "N/A"
+
+    # No graded scans available yet
+    if not graded_ods_record or 'graded_policies' not in graded_ods_record:
+        return "NOT GRADED"
+
+    # Build a quick lookup of scan_id -> passed
+    scan_pass_status = {}
+    for r in graded_ods_record['graded_policies']:
+        scan_id = r.get('policy_id')
+        if scan_id:
+            scan_pass_status[scan_id] = r.get('passed', False)
+
+    # Check which scans cover this device
+    covering_scan_ids = coverage_index.get(device_id, [])
+
+    if not covering_scan_ids:
+        # No scan covers this Windows host
+        return "FAILED"
+
+    # Pass if at least one covering scan has passed grading
+    for scan_id in covering_scan_ids:
+        if scan_pass_status.get(scan_id, False):
+            return "PASSED"
+
+    return "FAILED"
+
+
 def find_host_by_name(adapter, cid: str, hostname: str) -> Optional[Dict]:
     """Search for a host by hostname.
 
@@ -54,6 +99,11 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
     if not hosts_in_db or 'hosts' not in hosts_in_db:
         return []
 
+    # Load ODS scan coverage index once before iterating hosts
+    ods_coverage_record = adapter.get_ods_scan_coverage(cid)
+    ods_coverage_index = ods_coverage_record.get('coverage_index', {}) if ods_coverage_record else {}
+    ods_last_compliant_scan_times = ods_coverage_record.get('last_compliant_scan_times', {}) if ods_coverage_record else {}
+
     host_rows = []
 
     for host in hosts_in_db['hosts']:
@@ -86,6 +136,12 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
         it_automation_policy_info = device_policies.get('it-automation', {})
         it_automation_status = get_policy_status_func(it_automation_policy_info.get('policy_id'), policy_records.get('it_automation'))
 
+        # ODS scheduled scan status (Windows-only, based on coverage index)
+        ods_scheduled_scan_status = _get_ods_status(
+            device_id, platform, policy_records.get('ods_scheduled_scan'), ods_coverage_index
+        )
+        ods_last_compliant_scan = ods_last_compliant_scan_times.get(device_id, '')
+
         # Fetch Zero Trust Assessment data (if enabled)
         zta_assessment = None
         include_zta = config.get('host_fetching', {}).get('include_zta', True) if config else True
@@ -100,10 +156,11 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
 
         # Determine overall status
         statuses = [prevention_status, sensor_update_status, content_update_status,
-                    firewall_status, device_control_status, it_automation_status]
+                    firewall_status, device_control_status, it_automation_status,
+                    ods_scheduled_scan_status]
         has_any_failed = any(s == "FAILED" for s in statuses)
         has_any_ungradable = any(s == "UNGRADABLE" for s in statuses)
-        all_policies_passed = all(s == "PASSED" for s in statuses)
+        all_policies_passed = all(s in ("PASSED", "N/A") for s in statuses) and any(s == "PASSED" for s in statuses)
 
         host_rows.append({
             'device_id': device_id,
@@ -115,6 +172,8 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
             'firewall_status': firewall_status,
             'device_control_status': device_control_status,
             'it_automation_status': it_automation_status,
+            'ods_scheduled_scan_status': ods_scheduled_scan_status,
+            'ods_last_compliant_scan': ods_last_compliant_scan,
             'zta_assessment': zta_assessment,
             'all_passed': all_policies_passed,
             'any_failed': has_any_failed,

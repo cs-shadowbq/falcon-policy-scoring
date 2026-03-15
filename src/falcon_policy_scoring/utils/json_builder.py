@@ -322,6 +322,10 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
                         "status": host['it_automation_status'],
                         "policy_id": it_automation_info.get('policy_id') or it_automation_info.get('policy') or None,
                         "policy_name": _get_policy_name(it_automation_info.get('policy_id'))
+                    },
+                    "ods_scheduled_scan": {
+                        "status": host['ods_scheduled_scan_status'],
+                        "last_compliant_scan": host.get('ods_last_compliant_scan', '')
                     }
                 },
                 "all_policies_passed": host['all_passed'],

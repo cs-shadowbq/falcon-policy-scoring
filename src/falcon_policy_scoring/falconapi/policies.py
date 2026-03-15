@@ -57,6 +57,13 @@ POLICY_TYPES = {
         'is_shim': True,  # Flag to indicate this is a custom function, not a direct API command
         'weblink': 'https://www.falconpy.io/Service-Collections/IT-Automation.html#itautomationgetpolicies'
     },
+    'ods_scheduled_scan': {
+        'command': 'QueryScheduledScans',  # Custom shim function
+        'table_name': 'ods_scheduled_scan_policies',
+        'limit': 500,
+        'is_shim': True,  # Flag to indicate this uses a custom multi-step fetch
+        'weblink': 'https://www.falconpy.io/Service-Collections/ODS.html#queryscheduledscans'
+    },
 }
 
 
@@ -677,6 +684,128 @@ def fetch_grade_and_store_it_automation_policies(falcon, db_adapter, cid, gradin
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Error during fetch_grade_and_store_it_automation_policies: %s", e)
+        import traceback
+        logging.error(traceback.format_exc())
+
+    return result
+
+
+def fetch_grade_and_store_ods_scheduled_scan_policies(falcon, db_adapter, cid, grading_config_file=None):
+    """
+    Fetch ODS scheduled scans, build host coverage index, then grade and store results.
+
+    ODS scheduled scans are graded based on:
+    - status: Must be 'scheduled'
+    - schedule.interval: Must not exceed maximum days (e.g., 7)
+    - cloud_ml_level_detection: Must meet minimum level (0-3 scale)
+    - sensor_ml_level_detection: Must meet minimum level (0-3 scale)
+
+    Scheduled scans are Windows-only. Host coverage is stored separately so
+    that collect_host_data() can determine per-host ODS status.
+
+    Args:
+        falcon: FalconPy API client
+        db_adapter: Database adapter instance
+        cid: Customer ID
+        grading_config_file: Optional path to grading config file.
+                            Defaults to 'config/grading/ods_scheduled_scan_policies_grading.json'
+
+    Returns:
+        dict: Results including fetch status and grading summary
+    """
+    from falcon_policy_scoring.falconapi import ods as ods_module
+    from falcon_policy_scoring.grading import engine as grading_engine
+
+    result = {
+        'fetch_success': False,
+        'grade_success': False,
+        'policies_count': 0,
+        'passed_policies': 0,
+        'failed_policies': 0,
+        'permission_error': False,
+        'assist_message': None
+    }
+
+    try:
+        # Step 1: Fetch all scheduled scans
+        logging.info("Step 1: Fetching ODS scheduled scans...")
+        scans_data = ods_module.fetch_all_scheduled_scans(falcon, db_adapter, cid)
+
+        if scans_data.get('permission_error'):
+            result['permission_error'] = True
+            result['assist_message'] = scans_data.get('assist_message')
+            logging.warning("Permission error for ODS scheduled scans")
+            return result
+
+        scans_list = scans_data.get('policies', [])
+        if not scans_list:
+            logging.warning("No ODS scheduled scans found")
+            result['fetch_success'] = True
+            return result
+
+        result['policies_count'] = len(scans_list)
+        logging.info("Found %s ODS scheduled scans", result['policies_count'])
+
+        # Step 2: Build and store host coverage index
+        logging.info("Step 2: Building host coverage index from host groups...")
+        coverage_index = ods_module.build_host_coverage_index(falcon, scans_list)
+        db_adapter.put_ods_scan_coverage(cid, coverage_index)
+        logging.info("Coverage index stored: %d devices covered", len(coverage_index))
+
+        result['fetch_success'] = True
+
+        # Step 3: Load grading config
+        logging.info("Step 3: Loading grading configuration...")
+        if grading_config_file:
+            logging.info("Loading grading configuration from %s", grading_config_file)
+            grading_config = grading_engine.load_grading_config(config_file=grading_config_file)
+        else:
+            logging.info("Loading default ODS scheduled scan grading configuration")
+            grading_config = grading_engine.load_grading_config('ods_scheduled_scan_policies')
+
+        if not grading_config:
+            logging.error("Failed to load grading configuration")
+            return result
+
+        # Step 4: Grade scans
+        logging.info("Step 4: Grading %s ODS scheduled scans...", result['policies_count'])
+        graded_results = grading_engine.grade_all_ods_scheduled_scans(scans_data, grading_config)
+
+        if graded_results is None:
+            logging.error("Grading returned None")
+            return result
+
+        # Step 5: Store graded results
+        logging.info("Step 5: Storing graded results...")
+        db_adapter.put_graded_policies('ods_scheduled_scan_policies', cid, graded_results)
+
+        # Calculate summary
+        result['grade_success'] = True
+        result['passed_policies'] = sum(1 for r in graded_results if r.get('passed', False))
+        result['failed_policies'] = len(graded_results) - result['passed_policies']
+
+        # Step 6: Build per-host last compliant scan timestamps from scan run history.
+        # Scheduled scan metadata always stays 'scheduled' (next-run state only).
+        # Actual completion timestamps live in scan run objects, linked to the
+        # source scheduled scan via run['profile_id'].
+        logging.info("Step 6: Fetching scan run history for compliant scan timestamps...")
+        passing_scan_ids = {
+            r['policy_id'] for r in graded_results
+            if r.get('passed', False) and r.get('policy_id')
+        }
+        last_compliant_scan_times = ods_module.fetch_last_compliant_scan_times(
+            falcon, passing_scan_ids
+        )
+
+        db_adapter.put_ods_scan_coverage(cid, coverage_index, last_compliant_scan_times)
+        logging.info(
+            "ODS grading complete: %s/%s scans passed, %d devices covered, %d with compliant scan timestamp",
+            result['passed_policies'], result['policies_count'],
+            len(coverage_index), len(last_compliant_scan_times)
+        )
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logging.error("Error during fetch_grade_and_store_ods_scheduled_scan_policies: %s", e)
         import traceback
         logging.error(traceback.format_exc())
 

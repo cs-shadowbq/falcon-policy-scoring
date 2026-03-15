@@ -135,6 +135,7 @@ kubectl logs -n endpoint-readiness-audit -l app=falcon-policy-audit -f
 - [Firewall Policies](docs/firewall-policies.md) - Network connection rules
 - [Device Control Policies](docs/device-control-policies.md) - USB/peripheral restrictions
 - [IT Automation Policies](docs/it-automation-policies.md) - Remote access controls
+- [ODS Scheduled Scans](docs/ods-scheduled-scans.md) - ODS scan configuration and coverage
 
 ---
 
@@ -150,6 +151,9 @@ config/
     ├── prevention_policies_grading.json     # Prevention policy standards
     ├── sensor_update_policies_grading.json  # Sensor update standards
     ├── firewall_policies_grading.json       # Firewall standards
+    ├── device_control_policies_grading.json # Device control standards
+    ├── it_automation_policies_grading.json  # IT automation standards
+    ├── ods_scheduled_scan_policies_grading.json # ODS scheduled scan standards
     └── ...                                  # Other policy types
 ```
 

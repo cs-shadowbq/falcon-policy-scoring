@@ -79,6 +79,12 @@ POLICY_TYPE_REGISTRY = {
         'api_key': 'it-automation',
         'display_name': 'IT Automation',
         'cli_name': 'it-automation'
+    },
+    'ods_scheduled_scan': {
+        'db_key': 'ods_scheduled_scan_policies',
+        'api_key': 'ods-scheduled-scan',
+        'display_name': 'ODS Scheduled Scan',
+        'cli_name': 'ods-scheduled-scan'
     }
 }
 

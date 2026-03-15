@@ -376,6 +376,9 @@ class TestPolicyToHostRollup:
             def get_host_zta(self, device_id):
                 return None
 
+            def get_ods_scan_coverage(self, cid):
+                return None
+
         # Policy records - prevention FAILED, all others PASSED
         policy_records = {
             'prevention': {
@@ -460,14 +463,19 @@ class TestPolicyToHostRollup:
             def get_host_zta(self, device_id):
                 return None
 
-        # All policies PASSED
+            def get_ods_scan_coverage(self, cid):
+                # device-1 is covered by passing scan ods-1
+                return {'coverage_index': {'device-1': ['ods-1']}}
+
+        # All policies PASSED (including ODS with coverage)
         policy_records = {
             'prevention': {'graded_policies': [{'policy_id': 'prev-1', 'passed': True}]},
             'sensor_update': {'graded_policies': [{'policy_id': 'sensor-1', 'passed': True}]},
             'content_update': {'graded_policies': [{'policy_id': 'content-1', 'passed': True}]},
             'firewall': {'graded_policies': [{'policy_id': 'fw-1', 'passed': True}]},
             'device_control': {'graded_policies': [{'policy_id': 'dc-1', 'passed': True}]},
-            'it_automation': {'graded_policies': [{'policy_id': 'it-1', 'passed': True}]}
+            'it_automation': {'graded_policies': [{'policy_id': 'it-1', 'passed': True}]},
+            'ods_scheduled_scan': {'graded_policies': [{'policy_id': 'ods-1', 'passed': True}]}
         }
 
         adapter = MockAdapter()
@@ -514,6 +522,9 @@ class TestPolicyToHostRollup:
                 }
 
             def get_host_zta(self, device_id):
+                return None
+
+            def get_ods_scan_coverage(self, cid):
                 return None
 
         # Multiple policies FAILED
@@ -695,6 +706,9 @@ class TestCompleteRollupChain:
             def get_host_zta(self, device_id):
                 return None
 
+            def get_ods_scan_coverage(self, cid):
+                return None
+
         policy_records = {
             'prevention': {
                 'graded_policies': [policy_result]
@@ -769,6 +783,9 @@ class TestCompleteRollupChain:
                 }
 
             def get_host_zta(self, device_id):
+                return None
+
+            def get_ods_scan_coverage(self, cid):
                 return None
 
         policy_records = {
