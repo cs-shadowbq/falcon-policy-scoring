@@ -111,7 +111,7 @@ def determine_policy_types_to_display(policy_type_arg: str) -> List[str]:
         List of policy type keys to display
     """
     if policy_type_arg == 'all':
-        return ['prevention', 'sensor_update', 'content_update', 'firewall', 'device_control', 'it_automation', 'ods_scheduled_scan']
+        return ['prevention', 'sensor_update', 'content_update', 'firewall', 'device_control', 'it_automation', 'ods_scheduled_scan', 'response']
 
     # Handle comma-separated list
     policy_types = [t.strip() for t in policy_type_arg.split(',')]
@@ -124,7 +124,8 @@ def determine_policy_types_to_display(policy_type_arg: str) -> List[str]:
         'firewall': 'firewall',
         'device-control': 'device_control',
         'it-automation': 'it_automation',
-        'ods-scheduled-scan': 'ods_scheduled_scan'
+        'ods-scheduled-scan': 'ods_scheduled_scan',
+        'response': 'response'
     }
 
     result = []
