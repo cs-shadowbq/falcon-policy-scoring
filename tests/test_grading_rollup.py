@@ -455,7 +455,8 @@ class TestPolicyToHostRollup:
                             'content-update': {'policy_id': 'content-1'},
                             'firewall': {'policy_id': 'fw-1'},
                             'device_control': {'policy_id': 'dc-1'},
-                            'it-automation': {'policy_id': 'it-1'}
+                            'it-automation': {'policy_id': 'it-1'},
+                            'remote_response': {'policy_id': 'rtr-1'}
                         }
                     }
                 }
@@ -475,7 +476,8 @@ class TestPolicyToHostRollup:
             'firewall': {'graded_policies': [{'policy_id': 'fw-1', 'passed': True}]},
             'device_control': {'graded_policies': [{'policy_id': 'dc-1', 'passed': True}]},
             'it_automation': {'graded_policies': [{'policy_id': 'it-1', 'passed': True}]},
-            'ods_scheduled_scan': {'graded_policies': [{'policy_id': 'ods-1', 'passed': True}]}
+            'ods_scheduled_scan': {'graded_policies': [{'policy_id': 'ods-1', 'passed': True}]},
+            'response': {'graded_policies': [{'policy_id': 'rtr-1', 'passed': True}]}
         }
 
         adapter = MockAdapter()

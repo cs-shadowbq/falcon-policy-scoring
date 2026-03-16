@@ -282,6 +282,7 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
             firewall_info = _find_policy_info(device_policies, 'firewall')
             device_control_info = _find_policy_info(device_policies, 'device_control')
             it_automation_info = _find_policy_info(device_policies, 'it_automation')
+            response_info = _find_policy_info(device_policies, 'remote_response')
 
             # Helper to get policy name from ID
             def _get_policy_name(policy_id):
@@ -326,6 +327,11 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
                     "ods_scheduled_scan": {
                         "status": host['ods_scheduled_scan_status'],
                         "last_compliant_scan": host.get('ods_last_compliant_scan', '')
+                    },
+                    "response": {
+                        "status": host.get('response_status', 'NOT GRADED'),
+                        "policy_id": response_info.get('policy_id') or response_info.get('policy') or None,
+                        "policy_name": _get_policy_name(response_info.get('policy_id'))
                     }
                 },
                 "all_policies_passed": host['all_passed'],

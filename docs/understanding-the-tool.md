@@ -14,7 +14,7 @@ Without this tool, you would need to manually check every policy across every de
 
 For detailed information about how the overall grading system works, see the [Policy Grading System](policy-grading-system.md) documentation, which explains the grading architecture, how policies are evaluated, and how results are stored.
 
-The tool examines six types of security policies:
+The tool examines eight types of security policies:
 
 **Prevention policies** control how aggressively CrowdStrike blocks threats. The tool checks whether critical protections are enabled at appropriate levels. Weak prevention settings mean threats could slip through. [Learn more about prevention policy grading](prevention-policies.md).
 
@@ -29,6 +29,8 @@ The tool examines six types of security policies:
 **IT automation policies** govern remote access and scripting capabilities. The tool confirms these powerful features are properly restricted. Misconfigured automation policies let attackers gain elevated access. [Learn more about IT automation policy grading](it-automation-policies.md).
 
 **ODS scheduled scans** run periodic full-filesystem scans on Windows devices, checking dormant files that real-time protection may never have inspected. The tool verifies that scans run at least weekly, target the full filesystem, use adequate machine learning levels for both detection and prevention, and have quarantine enabled. This feature is Windows-only; Mac and Linux hosts receive an N/A status. [Learn more about ODS scheduled scan grading](ods-scans.md).
+
+**Response policies** control whether and how administrators can take real-time action on devices through Real-Time Response (RTR). The tool verifies that RTR capabilities are explicitly enabled, including core session functionality, custom scripts, file transfer commands, and remote execution. Response policies are also a prerequisite for IT automation—without an active response policy, IT automation features will not function for the affected host group. [Learn more about response policy grading](response-policies.md).
 
 ## Additonal Data
 

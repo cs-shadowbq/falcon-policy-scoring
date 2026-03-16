@@ -361,6 +361,7 @@ The host summary shows:
 - Device Control policy status
 - IT Automation policy status
 - ODS Scheduled Scan policy status
+- Response (RTR) policy status
 
 Status values:
 
