@@ -283,7 +283,7 @@ def build_host_table(host_rows: List[Dict], ctx, config: Dict = None, policy_typ
     """
     # Default to all policy types if not specified
     if policy_types is None:
-        policy_types = ['prevention', 'sensor_update', 'content_update', 'firewall', 'device_control', 'it_automation', 'ods_scheduled_scan']
+        policy_types = ['prevention', 'sensor_update', 'content_update', 'firewall', 'device_control', 'it_automation', 'ods_scheduled_scan', 'response']
 
     table = Table(title="Host Policy Status", show_lines=True)
     table.add_column("Hostname", style=Style.CYAN, width=30)
@@ -297,7 +297,8 @@ def build_host_table(host_rows: List[Dict], ctx, config: Dict = None, policy_typ
         ('firewall', 'Firewall', 'firewall_status'),
         ('device_control', 'Device Control', 'device_control_status'),
         ('it_automation', 'IT Automation', 'it_automation_status'),
-        ('ods_scheduled_scan', 'ODS Scan', 'ods_scheduled_scan_status')
+        ('ods_scheduled_scan', 'ODS Scan', 'ods_scheduled_scan_status'),
+        ('response', 'Response (RTR)', 'response_status')
     ]
 
     # Add only the requested policy columns

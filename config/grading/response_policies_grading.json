@@ -1,0 +1,118 @@
+{
+  "response_policies": [
+    {
+      "platform_name": "Windows",
+      "enabled": true,
+      "response_settings": [
+        {
+          "id": "RealTimeFunctionality",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "CustomScripts",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "GetCommand",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "PutCommand",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "ExecCommand",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "PutAndRunCommand",
+          "value": {
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "platform_name": "Linux",
+      "enabled": true,
+      "response_settings": [
+        {
+          "id": "RealTimeFunctionality",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "CustomScripts",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "GetCommand",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "PutCommand",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "ExecCommand",
+          "value": {
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "platform_name": "Mac",
+      "enabled": true,
+      "response_settings": [
+        {
+          "id": "RealTimeFunctionality",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "CustomScripts",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "GetCommand",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "PutCommand",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "id": "ExecCommand",
+          "value": {
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

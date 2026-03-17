@@ -123,7 +123,8 @@ class TextOutputStrategy(OutputStrategy):
                     ('content_update', 'Content Update', policy_records.get('content_update')),
                     ('firewall', 'Firewall', policy_records.get('firewall')),
                     ('device_control', 'Device Control', policy_records.get('device_control')),
-                    ('it_automation', 'IT Automation', policy_records.get('it_automation'))
+                    ('it_automation', 'IT Automation', policy_records.get('it_automation')),
+                    ('response', 'Response (RTR)', policy_records.get('response'))
                 ]
 
                 # Filter to only show the requested policy types

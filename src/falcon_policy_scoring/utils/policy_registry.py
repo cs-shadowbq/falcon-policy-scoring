@@ -16,6 +16,7 @@ class PolicyTypeRegistry:
             fetch_grade_and_store_device_control_policies,
             fetch_grade_and_store_it_automation_policies,
             fetch_grade_and_store_ods_scheduled_scan_policies,
+            fetch_grade_and_store_response_policies,
         )
 
         self._registry = {
@@ -67,6 +68,13 @@ class PolicyTypeRegistry:
                 display_name='ODS Scheduled Scan',
                 cli_name='ods-scheduled-scan',
                 grader_func=fetch_grade_and_store_ods_scheduled_scan_policies
+            ),
+            'response': PolicyTypeInfo(
+                db_key='response_policies',
+                api_key='response',
+                display_name='Response (RTR)',
+                cli_name='response',
+                grader_func=fetch_grade_and_store_response_policies
             ),
         }
 

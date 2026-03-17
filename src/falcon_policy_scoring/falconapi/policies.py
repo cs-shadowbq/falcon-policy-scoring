@@ -33,7 +33,7 @@ POLICY_TYPES = {
         'weblink': 'https://www.falconpy.io/Service-Collections/Sensor-Update-Policies.html#querycombinedsensorupdatepolicies'
     },
     'response': {
-        'command': 'queryCombinedRTResponsePolicies',   # Not Graded at this Time
+        'command': 'queryCombinedRTResponsePolicies',
         'table_name': 'response_policies',
         'limit': 5000,
         'weblink': 'https://www.falconpy.io/Service-Collections/Response-Policies.html#querycombinedrtresponsepolicies'
@@ -349,6 +349,32 @@ def fetch_grade_and_store_content_update_policies(falcon, db_adapter, cid, gradi
     """
     return grading.fetch_grade_and_store_policies(
         falcon, db_adapter, cid, 'content_update', grading_config_file
+    )
+
+
+def fetch_grade_and_store_response_policies(falcon, db_adapter, cid, grading_config_file=None):
+    """
+    Fetch Response (RTR) policies, grade them against minimums, and store both.
+
+    RTR policies are graded based on toggle settings:
+    - enabled: Policy must be active
+    - RealTimeFunctionality: Core RTR toggle must be enabled
+    - CustomScripts: Custom scripts toggle must be enabled
+    - GetCommand, PutCommand, ExecCommand: High-risk command toggles
+    - PutAndRunCommand: Put-and-run command (Windows only)
+
+    Args:
+        falcon: FalconPy API client
+        db_adapter: Database adapter instance
+        cid: Customer ID
+        grading_config_file: Optional path to grading config file.
+                            Defaults to 'config/grading/response_policies_grading.json'
+
+    Returns:
+        dict: Results including fetch status and grading summary
+    """
+    return grading.fetch_grade_and_store_policies(
+        falcon, db_adapter, cid, 'response', grading_config_file
     )
 
 
