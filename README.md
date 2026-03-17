@@ -13,7 +13,7 @@
 
 ## Key Capabilities
 
-Falcon Policy Audit evaluates your CrowdStrike security policies across six critical areas: Prevention, Sensor Update, Content Update, Firewall, Device Control, and IT Automation. It compares your configurations against customizable security standards, identifies which hosts are affected by policy gaps, and provides detailed compliance reports.
+Falcon Policy Audit evaluates your CrowdStrike security policies across eight critical areas: Prevention, Sensor Update, Content Update, Firewall, Device Control, IT Automation, ODS Scheduled Scans, and Response (RTR). It compares your configurations against customizable security standards, identifies which hosts are affected by policy gaps, and provides detailed compliance reports.
 
 Run it interactively for ad-hoc audits or deploy as a daemon for scheduled monitoring with configurable intervals. The daemon mode includes enterprise features like intelligent API rate limiting, health check endpoints, Prometheus metrics, and graceful shutdown handling.
 
@@ -50,6 +50,7 @@ policy-audit fetch
 
 # Limit fetching to specific policy types, host groups, and last-seen
 # policy-audit fetch --host-groups "MY-GROUP" -t "it-automation" --last-seen day
+# policy-audit fetch --host-groups "MY-GROUP" -t "response" --last-seen day
 
 # View results
 ## Simply run policy-audit hosts or policy-audit policies without any arguments, and it will automatically use the most recent cached data.
@@ -135,7 +136,8 @@ kubectl logs -n endpoint-readiness-audit -l app=falcon-policy-audit -f
 - [Firewall Policies](docs/firewall-policies.md) - Network connection rules
 - [Device Control Policies](docs/device-control-policies.md) - USB/peripheral restrictions
 - [IT Automation Policies](docs/it-automation-policies.md) - Remote access controls
-- [ODS Scheduled Scans](docs/ods-scheduled-scans.md) - ODS scan configuration and coverage
+- [ODS Scheduled Scans](docs/ods-scans.md) - ODS scan configuration and coverage
+- [Response Policies](docs/response-policies.md) - Real-Time Response (RTR) controls and IT automation prerequisite
 
 ---
 
@@ -154,6 +156,7 @@ config/
     ├── device_control_policies_grading.json # Device control standards
     ├── it_automation_policies_grading.json  # IT automation standards
     ├── ods_scheduled_scan_policies_grading.json # ODS scheduled scan standards
+    ├── response_policies_grading.json       # Response (RTR) standards
     └── ...                                  # Other policy types
 ```
 

@@ -66,7 +66,7 @@ def validate_policy_types(value: str) -> str:
     Raises:
         argparse.ArgumentTypeError: If validation fails
     """
-    valid_types = {'prevention', 'sensor-update', 'content-update', 'firewall', 'device-control', 'it-automation', 'ods-scheduled-scan'}
+    valid_types = {'prevention', 'sensor-update', 'content-update', 'firewall', 'device-control', 'it-automation', 'ods-scheduled-scan', 'response'}
 
     # Split by comma and strip whitespace
     types = [t.strip() for t in value.split(',')]
@@ -97,7 +97,7 @@ def parse_arguments() -> argparse.Namespace:
         Parsed arguments namespace
     """
 
-    policy_type_help_text = "Policy type(s) to process. Use 'all' or comma-separated list. Valid types are: all, content-update, device-control, firewall, it-automation, ods-scheduled-scan, prevention, sensor-update. Example: -t 'prevention,firewall'"
+    policy_type_help_text = "Policy type(s) to process. Use 'all' or comma-separated list. Valid types are: all, content-update, device-control, firewall, it-automation, ods-scheduled-scan, prevention, response, sensor-update. Example: -t 'prevention,firewall'"
 
     parser = argparse.ArgumentParser(
         description="CrowdStrike Falcon Policy Audit Tool - Fetch, grade, and analyze security policies",

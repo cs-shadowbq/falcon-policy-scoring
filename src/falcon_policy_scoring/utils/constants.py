@@ -85,6 +85,12 @@ POLICY_TYPE_REGISTRY = {
         'api_key': 'ods-scheduled-scan',
         'display_name': 'ODS Scheduled Scan',
         'cli_name': 'ods-scheduled-scan'
+    },
+    'response': {
+        'db_key': 'response_policies',
+        'api_key': 'response',
+        'display_name': 'Response (RTR)',
+        'cli_name': 'response'
     }
 }
 

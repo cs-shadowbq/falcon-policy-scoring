@@ -136,6 +136,9 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
         it_automation_policy_info = device_policies.get('it-automation', {})
         it_automation_status = get_policy_status_func(it_automation_policy_info.get('policy_id'), policy_records.get('it_automation'))
 
+        response_policy_info = device_policies.get('remote_response', {})
+        response_status = get_policy_status_func(response_policy_info.get('policy_id'), policy_records.get('response'))
+
         # ODS scheduled scan status (Windows-only, based on coverage index)
         ods_scheduled_scan_status = _get_ods_status(
             device_id, platform, policy_records.get('ods_scheduled_scan'), ods_coverage_index
@@ -157,7 +160,7 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
         # Determine overall status
         statuses = [prevention_status, sensor_update_status, content_update_status,
                     firewall_status, device_control_status, it_automation_status,
-                    ods_scheduled_scan_status]
+                    ods_scheduled_scan_status, response_status]
         has_any_failed = any(s == "FAILED" for s in statuses)
         has_any_ungradable = any(s == "UNGRADABLE" for s in statuses)
         all_policies_passed = all(s in ("PASSED", "N/A") for s in statuses) and any(s == "PASSED" for s in statuses)
@@ -174,6 +177,7 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
             'it_automation_status': it_automation_status,
             'ods_scheduled_scan_status': ods_scheduled_scan_status,
             'ods_last_compliant_scan': ods_last_compliant_scan,
+            'response_status': response_status,
             'zta_assessment': zta_assessment,
             'all_passed': all_policies_passed,
             'any_failed': has_any_failed,
