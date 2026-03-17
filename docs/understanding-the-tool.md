@@ -30,6 +30,10 @@ The tool examines six types of security policies:
 
 **ODS scheduled scans** run periodic full-filesystem scans on Windows devices, checking dormant files that real-time protection may never have inspected. The tool verifies that scans run at least weekly, target the full filesystem, use adequate machine learning levels for both detection and prevention, and have quarantine enabled. This feature is Windows-only; Mac and Linux hosts receive an N/A status. [Learn more about ODS scheduled scan grading](ods-scans.md).
 
+**Response (RTR - Real Time Response) policies** ensure that devices are available for real-time response actions. The tool checks that real-time protection is enabled and configured correctly. Disabling real-time protection leaves devices vulnerable to attacks. Understand the implication of Response enabledment on IT Automation policies. [Learn more about real time response policy grading](response-policies.md).
+
+**Zero Trust Assessment policies** evaluate how well devices adhere to zero trust principles. The tool checks that these assessments run regularly and that devices meet minimum security standards. Poor zero trust assessment policies indicate weak overall security posture. [Learn more about zero trust assessment policy grading](zero-trust-assessment-policies.md).
+
 ## Additonal Data
 
 To provide context for policy grading, the tool also collects:
