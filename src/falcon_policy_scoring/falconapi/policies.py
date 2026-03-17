@@ -5,65 +5,26 @@ Provides a generic interface for fetching different policy types.
 
 import logging
 from falcon_policy_scoring import grading
+from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 
-# Policy type configuration mapping
+# Policy type configuration — derived from the central registry.
+# 'sca' (Secure Configuration Assessment) is retained as a placeholder; it
+# reuses the sensor_update API command but is not part of the graded registry.
 POLICY_TYPES = {
-    'prevention': {
-        'command': 'queryCombinedPreventionPolicies',
-        'table_name': 'prevention_policies',
-        'limit': 5000,
-        'weblink': 'https://www.falconpy.io/Service-Collections/Prevention-Policies.html#querycombinedpreventionpolicies'
-    },
-    'firewall': {
-        'command': 'queryCombinedFirewallPolicies',
-        'table_name': 'firewall_policies',
-        'limit': 5000,
-        'weblink': 'https://www.falconpy.io/Service-Collections/Firewall-Policies.html#querycombinedfirewallpolicies'
-    },
-    'sca': {
-        'command': 'queryCombinedSensorUpdatePolicies',  # Secure Configuration Assessment - Placeholder TBD
-        'table_name': 'sca_policies',
-        'limit': 5000,
-        'weblink': 'https://www.falconpy.io/Service-Collections/Sensor-Update-Policies.html#querycombinedsensorupdatepolicies'
-    },
-    'sensor_update': {
-        'command': 'queryCombinedSensorUpdatePolicies',
-        'table_name': 'sensor_update_policies',
-        'limit': 5000,
-        'weblink': 'https://www.falconpy.io/Service-Collections/Sensor-Update-Policies.html#querycombinedsensorupdatepolicies'
-    },
-    'response': {
-        'command': 'queryCombinedRTResponsePolicies',   # Not Graded at this Time
-        'table_name': 'response_policies',
-        'limit': 5000,
-        'weblink': 'https://www.falconpy.io/Service-Collections/Response-Policies.html#querycombinedrtresponsepolicies'
-    },
-    'content_update': {
-        'command': 'queryCombinedContentUpdatePolicies',
-        'table_name': 'content_update_policies',
-        'limit': 5000,
-        'weblink': 'https://www.falconpy.io/Service-Collections/Content-Update-Policies.html#querycombinedcontentupdatepolicies'
-    },
-    'device_control': {
-        'command': 'queryCombinedDeviceControlPolicies',
-        'table_name': 'device_control_policies',
-        'limit': 5000,
-        'weblink': 'https://www.falconpy.io/Service-Collections/Device-Control-Policies.html#querycombineddevicecontrolpolicies'
-    },
-    'it_automation': {
-        'command': 'query_combined_it_automation_policies',  # Custom shim function
-        'table_name': 'it_automation_policies',
-        'limit': 500,
-        'is_shim': True,  # Flag to indicate this is a custom function, not a direct API command
-        'weblink': 'https://www.falconpy.io/Service-Collections/IT-Automation.html#itautomationgetpolicies'
-    },
-    'ods_scheduled_scan': {
-        'command': 'QueryScheduledScans',  # Custom shim function
-        'table_name': 'ods_scheduled_scan_policies',
-        'limit': 500,
-        'is_shim': True,  # Flag to indicate this uses a custom multi-step fetch
-        'weblink': 'https://www.falconpy.io/Service-Collections/ODS.html#queryscheduledscans'
-    },
+    k: {
+        'command': v['api_command'],
+        'table_name': v['db_key'],
+        'limit': v['api_limit'],
+        'weblink': v['api_weblink'],
+        **({'is_shim': True} if v['is_shim'] else {}),
+    }
+    for k, v in POLICY_TYPE_REGISTRY.items()
+}
+POLICY_TYPES['sca'] = {
+    'command': 'queryCombinedSensorUpdatePolicies',  # Secure Configuration Assessment - Placeholder TBD
+    'table_name': 'sca_policies',
+    'limit': 5000,
+    'weblink': 'https://www.falconpy.io/Service-Collections/Sensor-Update-Policies.html#querycombinedsensorupdatepolicies'
 }
 
 
@@ -810,3 +771,29 @@ def fetch_grade_and_store_ods_scheduled_scan_policies(falcon, db_adapter, cid, g
         logging.error(traceback.format_exc())
 
     return result
+
+
+def fetch_grade_and_store_response_policies(falcon, db_adapter, cid, grading_config_file=None):
+    """
+    Fetch Response (RTR) policies, grade them against minimums, and store both.
+
+    RTR policies are graded based on toggle settings:
+    - enabled: Policy must be active
+    - RealTimeFunctionality: Core RTR toggle must be enabled
+    - CustomScripts: Custom scripts toggle must be enabled
+    - GetCommand, PutCommand, ExecCommand: High-risk command toggles
+    - PutAndRunCommand: Put-and-run command (Windows only)
+
+    Args:
+        falcon: FalconPy API client
+        db_adapter: Database adapter instance
+        cid: Customer ID
+        grading_config_file: Optional path to grading config file.
+                            Defaults to 'config/grading/response_policies_grading.json'
+
+    Returns:
+        dict: Results including fetch status and grading summary
+    """
+    return grading.fetch_grade_and_store_policies(
+        falcon, db_adapter, cid, 'response', grading_config_file
+    )

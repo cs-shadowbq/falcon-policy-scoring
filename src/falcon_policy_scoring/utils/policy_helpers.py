@@ -4,6 +4,7 @@ Pure business logic for policy operations. No UI dependencies.
 Shared between CLI and daemon modules.
 """
 from typing import Dict, Optional, List
+from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 
 
 def calculate_score_percentage(checks: int, failures: int) -> float:
@@ -111,24 +112,14 @@ def determine_policy_types_to_display(policy_type_arg: str) -> List[str]:
         List of policy type keys to display
     """
     if policy_type_arg == 'all':
-        return ['prevention', 'sensor_update', 'content_update', 'firewall', 'device_control', 'it_automation', 'ods_scheduled_scan']
-
-    # Handle comma-separated list
-    policy_types = [t.strip() for t in policy_type_arg.split(',')]
+        # All gradable types in registry order
+        return [k for k, v in POLICY_TYPE_REGISTRY.items() if v.get('gradable', True)]
 
     # Map from CLI format (with hyphens) to internal format (with underscores)
-    type_mapping = {
-        'prevention': 'prevention',
-        'sensor-update': 'sensor_update',
-        'content-update': 'content_update',
-        'firewall': 'firewall',
-        'device-control': 'device_control',
-        'it-automation': 'it_automation',
-        'ods-scheduled-scan': 'ods_scheduled_scan'
-    }
+    type_mapping = {v['cli_name']: k for k, v in POLICY_TYPE_REGISTRY.items()}
 
     result = []
-    for policy_type in policy_types:
+    for policy_type in [t.strip() for t in policy_type_arg.split(',')]:
         if policy_type in type_mapping:
             result.append(type_mapping[policy_type])
 

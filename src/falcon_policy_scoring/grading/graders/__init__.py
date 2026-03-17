@@ -30,6 +30,10 @@ from falcon_policy_scoring.grading.graders.ods_scheduled_scan import (
     grade_ods_scheduled_scan,
     grade_all_ods_scheduled_scans
 )
+from falcon_policy_scoring.grading.graders.response import (
+    grade_response_policy,
+    grade_all_response_policies
+)
 
 __all__ = [
     'grade_prevention_policy',
@@ -46,4 +50,6 @@ __all__ = [
     'grade_all_it_automation_policies',
     'grade_ods_scheduled_scan',
     'grade_all_ods_scheduled_scans',
+    'grade_response_policy',
+    'grade_all_response_policies',
 ]

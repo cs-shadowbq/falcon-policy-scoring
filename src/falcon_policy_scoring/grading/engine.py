@@ -12,8 +12,10 @@ from falcon_policy_scoring.grading.graders import (
     grade_all_firewall_policies,
     grade_all_device_control_policies,
     grade_all_it_automation_policies,
-    grade_all_ods_scheduled_scans
+    grade_all_ods_scheduled_scans,
+    grade_all_response_policies
 )
+from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 
 
 def load_grading_config(policy_type='prevention_policies', config_file=None):
@@ -154,7 +156,7 @@ def fetch_grade_and_store_policies(falcon, db_adapter, cid, policy_type, grading
     return result
 
 
-# Policy graders dictionary (defined after all grade functions)
+# Policy graders dictionary (defined after all grade functions).
 POLICY_GRADERS = {
     'prevention': grade_all_prevention_policies,
     'sensor_update': grade_all_sensor_update_policies,
@@ -163,15 +165,13 @@ POLICY_GRADERS = {
     'device_control': grade_all_device_control_policies,
     'it_automation': grade_all_it_automation_policies,
     'ods_scheduled_scan': grade_all_ods_scheduled_scans,
+    'response': grade_all_response_policies,
 }
 
-# Policy type to default config name mapping
+# Derived from POLICY_TYPE_REGISTRY — maps policy type key to its db_key (grading config name).
+# Only includes gradable types so this can be used to drive grading loops safely.
 DEFAULT_GRADING_CONFIGS = {
-    'prevention': 'prevention_policies',
-    'sensor_update': 'sensor_update_policies',
-    'content_update': 'content_update_policies',
-    'firewall': 'firewall_policies',
-    'device_control': 'device_control_policies',
-    'it_automation': 'it_automation_policies',
-    'ods_scheduled_scan': 'ods_scheduled_scan_policies',
+    k: v['db_key']
+    for k, v in POLICY_TYPE_REGISTRY.items()
+    if v.get('gradable', True)
 }

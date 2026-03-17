@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from falconpy import APIHarnessV2
 from falcon_policy_scoring import __version__, __author__, __maintainers__, __license__
 from falcon_policy_scoring.utils.config import read_config_from_yaml
+from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 from falcon_policy_scoring.utils.logger import setup_logging
 from falcon_policy_scoring.factories.database_factory import DatabaseFactory
 from falcon_policy_scoring.falconapi.cid import get_cid
@@ -66,7 +67,7 @@ def validate_policy_types(value: str) -> str:
     Raises:
         argparse.ArgumentTypeError: If validation fails
     """
-    valid_types = {'prevention', 'sensor-update', 'content-update', 'firewall', 'device-control', 'it-automation', 'ods-scheduled-scan'}
+    valid_types = {v['cli_name'] for v in POLICY_TYPE_REGISTRY.values()}
 
     # Split by comma and strip whitespace
     types = [t.strip() for t in value.split(',')]
@@ -222,6 +223,14 @@ def parse_arguments() -> argparse.Namespace:
         default='platform',
         help='Sort policies by: platform (default), name, or score'
     )
+    policies_parser.add_argument(
+        '--wide',
+        dest='wide',
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help='Wide output with full status labels and column names (default: true). '
+             'Use --no-wide for compact symbols and abbreviated headers.'
+    )
 
     # Subcommand: hosts
     hosts_parser = subparsers.add_parser(
@@ -253,6 +262,14 @@ def parse_arguments() -> argparse.Namespace:
         default='platform',
         help='Sort hosts by: platform (default), hostname, or status (failed first)'
     )
+    hosts_parser.add_argument(
+        '--wide',
+        dest='wide',
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help='Wide output with full status labels and column names (default: true). '
+             'Use --no-wide for compact symbols and abbreviated headers.'
+    )
 
     # Subcommand: host (singular)
     host_parser = subparsers.add_parser(
@@ -275,6 +292,14 @@ def parse_arguments() -> argparse.Namespace:
         '--details',
         action='store_true',
         help='Show detailed failure information for failed policies'
+    )
+    host_parser.add_argument(
+        '--wide',
+        dest='wide',
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help='Wide output with full status labels and column names (default: true). '
+             'Use --no-wide for compact symbols and abbreviated headers.'
     )
 
     # Subcommand: generate-schema

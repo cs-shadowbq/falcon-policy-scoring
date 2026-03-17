@@ -1,7 +1,7 @@
 """Formatters for displaying policy audit results."""
 from rich.table import Table
 from typing import Dict, List, Optional
-from falcon_policy_scoring.utils.constants import Style, PolicyStatus
+from falcon_policy_scoring.utils.constants import Style, PolicyStatus, POLICY_TYPE_REGISTRY
 from .helpers import calculate_score_percentage, get_platform_name
 from falcon_policy_scoring.utils.policy_helpers import calculate_policy_stats
 from falcon_policy_scoring.utils.cache_helpers import (
@@ -10,25 +10,26 @@ from falcon_policy_scoring.utils.cache_helpers import (
 from falcon_policy_scoring.utils.models import CacheInfo
 
 
-def format_status_cell(status: str) -> str:
+def format_status_cell(status: str, wide: bool = True) -> str:
     """Format status with Rich markup.
 
     Args:
         status: Status string
+        wide: If True (default), show full text labels. If False, use compact symbols only.
 
     Returns:
         Formatted string with Rich color markup
     """
     if status == PolicyStatus.PASSED.value:
-        return f"[{Style.GREEN}]✓ PASSED[/{Style.GREEN}]"
+        return f"[{Style.GREEN}]✓ PASSED[/{Style.GREEN}]" if wide else f"[{Style.GREEN}]✓[/{Style.GREEN}]"
     if status == PolicyStatus.FAILED.value:
-        return f"[{Style.RED}]✗ FAILED[/{Style.RED}]"
+        return f"[{Style.RED}]✗ FAILED[/{Style.RED}]" if wide else f"[{Style.RED}]✗[/{Style.RED}]"
     if status == "UNGRADABLE":
-        return f"[{Style.YELLOW}]⚠ UNGRADABLE[/{Style.YELLOW}]"
+        return f"[{Style.YELLOW}]⚠ UNGRADABLE[/{Style.YELLOW}]" if wide else f"[{Style.YELLOW}]⚠[/{Style.YELLOW}]"
     if status == PolicyStatus.NOT_GRADED.value:
-        return f"[{Style.YELLOW}]NOT GRADED[/{Style.YELLOW}]"
+        return f"[{Style.YELLOW}]NOT GRADED[/{Style.YELLOW}]" if wide else f"[{Style.YELLOW}]–[/{Style.YELLOW}]"
     # NO POLICY ASSIGNED
-    return f"[{Style.DIM}]NO POLICY[/{Style.DIM}]"
+    return f"[{Style.DIM}]NO POLICY[/{Style.DIM}]" if wide else f"[{Style.DIM}]ⁿ/ₐ[/{Style.DIM}]"
 
 
 def calculate_cache_info(graded_record: Dict, config: Dict, policy_type: str) -> CacheInfo:
@@ -62,16 +63,32 @@ def calculate_cache_info(graded_record: Dict, config: Dict, policy_type: str) ->
     )
 
 
-def format_policy_table_row(policy: Dict) -> tuple:
+_PLATFORM_ABBREV = {
+    'Windows': 'Win',
+    'Linux': 'Lin',
+    'macOS': 'Mac',
+    'Android': 'AOSP',
+}
+
+
+def format_policy_table_row(policy: Dict, wide: bool = True) -> tuple:
     """Format a single policy as a table row.
 
     Args:
         policy: Policy dictionary
+        wide: If True (default), use full labels. If False, use compact symbols.
 
     Returns:
         Tuple of (status_icon, policy_name, platform, checks_display, score_display)
     """
     platform_name = get_platform_name(policy)
+    if not wide:
+        platform_name = _PLATFORM_ABBREV.get(platform_name, platform_name)
+
+    policy_name = policy.get('policy_name', 'Unknown')
+    if not wide and len(policy_name) > 30:
+        policy_name = policy_name[:29] + '…'
+
     checks_count = policy.get('checks_count', 0)
     failures_count = policy.get('failures_count', 0)
     grading_status = policy.get('grading_status', 'graded')
@@ -82,7 +99,7 @@ def format_policy_table_row(policy: Dict) -> tuple:
         status_color = Style.YELLOW
         score_display = "N/A"
         score_style = Style.YELLOW
-        checks_display = "ungradable"
+        checks_display = "N/A" if not wide else "ungradable"
         checks_style = Style.YELLOW
         checks_suffix = ""
     elif policy.get('passed', False):
@@ -99,7 +116,7 @@ def format_policy_table_row(policy: Dict) -> tuple:
         # Format checks display
         checks_display = f"{failures_count}/{checks_count}"
         checks_style = Style.GREEN
-        checks_suffix = " failed"
+        checks_suffix = "" if not wide else " failed"
     else:
         status_icon = "✗"
         status_color = Style.RED
@@ -117,18 +134,18 @@ def format_policy_table_row(policy: Dict) -> tuple:
         # Format checks display
         checks_display = f"{failures_count}/{checks_count}"
         checks_style = Style.RED
-        checks_suffix = " failed"
+        checks_suffix = "" if not wide else " failed"
 
     return (
         f"[{status_color}]{status_icon}[/{status_color}]",
-        policy.get('policy_name', 'Unknown'),
+        policy_name,
         platform_name,
         f"[{checks_style}]{checks_display}[/{checks_style}]{checks_suffix}",
         f"[{score_style}]{score_display}[/{score_style}]"
     )
 
 
-def print_policy_table(graded_record: Dict, policy_type: str, config: Dict, policies: List[Dict], ctx):
+def print_policy_table(graded_record: Dict, policy_type: str, config: Dict, policies: List[Dict], ctx, wide: bool = True):
     """Print a Rich table of graded policies.
 
     Args:
@@ -137,6 +154,7 @@ def print_policy_table(graded_record: Dict, policy_type: str, config: Dict, poli
         config: Configuration dict
         policies: Filtered and sorted list of policies
         ctx: CLI context
+        wide: If True (default), use full labels. If False, use compact symbols.
     """
     if not policies:
         ctx.console.print(f"[{Style.YELLOW}]No policies match the specified filters[/{Style.YELLOW}]\n")
@@ -145,15 +163,22 @@ def print_policy_table(graded_record: Dict, policy_type: str, config: Dict, poli
     # Create table
     table = Table(title=f"{policy_type.replace('_', ' ').title()} Policies", show_lines=True)
 
-    table.add_column("Status", justify="center", style="bold", width=8)
-    table.add_column("Policy Name", style=Style.CYAN)
-    table.add_column("Platform", justify="center", width=12)
-    table.add_column("Checks", justify="center", width=12)
-    table.add_column("Score", justify="center", width=8)
+    if wide:
+        table.add_column("Status", justify="center", style="bold", width=8)
+        table.add_column("Policy Name", style=Style.CYAN)
+        table.add_column("Platform", justify="center", width=12)
+        table.add_column("Checks", justify="center", width=12)
+        table.add_column("Score", justify="center", width=8)
+    else:
+        table.add_column("St", justify="center", style="bold", width=4)
+        table.add_column("Policy", style=Style.CYAN, width=30)
+        table.add_column("OS", justify="center", width=5)
+        table.add_column("Chk", justify="center", width=6)
+        table.add_column("Sc", justify="center", width=6)
 
     # Add rows
     for policy in policies:
-        table.add_row(*format_policy_table_row(policy))
+        table.add_row(*format_policy_table_row(policy, wide=wide))
 
     # Print table
     ctx.console.print(table)
@@ -269,7 +294,7 @@ def print_policy_details(graded_record: Dict, policy_type: str, ctx):
             ctx.console.print(f"[{Style.BOLD}]Reason:[/{Style.BOLD}] {reason.replace('_', ' ').title()}\n")
 
 
-def build_host_table(host_rows: List[Dict], ctx, config: Dict = None, policy_types: List[str] = None) -> Table:
+def build_host_table(host_rows: List[Dict], ctx, config: Dict = None, policy_types: List[str] = None, wide: bool = True) -> Table:
     """Build a Rich table for host policy status.
 
     Args:
@@ -277,64 +302,67 @@ def build_host_table(host_rows: List[Dict], ctx, config: Dict = None, policy_typ
         ctx: CLI context
         config: Configuration dictionary (optional)
         policy_types: List of policy types to display (optional, defaults to all)
+        wide: If True (default), use full column names and status labels.
+              If False, use abbreviated headers and compact status symbols.
 
     Returns:
         Rich Table object
     """
-    # Default to all policy types if not specified
+    # Default to all policy types if not specified (gradable only — matches historical behaviour)
     if policy_types is None:
-        policy_types = ['prevention', 'sensor_update', 'content_update', 'firewall', 'device_control', 'it_automation', 'ods_scheduled_scan']
+        policy_types = [k for k, v in POLICY_TYPE_REGISTRY.items() if v.get('gradable', True)]
 
     table = Table(title="Host Policy Status", show_lines=True)
     table.add_column("Hostname", style=Style.CYAN, width=30)
-    table.add_column("Platform", justify="center", width=12)
+    table.add_column("OS" if not wide else "Platform", justify="center", width=4 if not wide else 12)
 
-    # Define policy column mappings
+    # Policy column definitions derived from registry: (type_key, wide_header, narrow_header, status_key, narrow_width)
     policy_columns = [
-        ('prevention', 'Prevention', 'prevention_status'),
-        ('sensor_update', 'Sensor Update', 'sensor_update_status'),
-        ('content_update', 'Content Update', 'content_update_status'),
-        ('firewall', 'Firewall', 'firewall_status'),
-        ('device_control', 'Device Control', 'device_control_status'),
-        ('it_automation', 'IT Automation', 'it_automation_status'),
-        ('ods_scheduled_scan', 'ODS Scan', 'ods_scheduled_scan_status')
+        (k, v['table_header'], v['narrow_header'], v['status_key'], 4)
+        for k, v in POLICY_TYPE_REGISTRY.items()
     ]
 
     # Add only the requested policy columns
     active_columns = []
-    for policy_type, column_name, status_key in policy_columns:
+    for policy_type, wide_name, narrow_name, status_key, narrow_width in policy_columns:
         if policy_type in policy_types:
-            table.add_column(column_name, justify="center", width=15)
+            col_name = wide_name if wide else narrow_name
+            col_width = 15 if wide else narrow_width
+            table.add_column(col_name, justify="center", width=col_width)
             active_columns.append(status_key)
 
     # Add Zero Trust column if enabled
     include_zta = config.get('host_fetching', {}).get('include_zta', True) if config else True
     if include_zta:
-        table.add_column("Zero Trust", justify="center", width=18)
+        table.add_column("ZTA" if not wide else "Zero Trust", justify="center", width=9 if not wide else 18)
 
     for row in host_rows:
+        platform_val = row['platform']
+        if not wide:
+            platform_val = _PLATFORM_ABBREV.get(platform_val, platform_val)
         row_data = [
             row['hostname'],
-            row['platform']
+            platform_val
         ]
 
         # Add only the active policy columns
         for status_key in active_columns:
-            row_data.append(format_status_cell(row[status_key]))
+            row_data.append(format_status_cell(row[status_key], wide=wide))
 
         if include_zta:
-            row_data.append(format_zta_cell(row.get('zta_assessment')))
+            row_data.append(format_zta_cell(row.get('zta_assessment'), wide=wide))
 
         table.add_row(*row_data)
 
     return table
 
 
-def format_zta_cell(zta_assessment: Optional[Dict]) -> str:
+def format_zta_cell(zta_assessment: Optional[Dict], wide: bool = True) -> str:
     """Format Zero Trust Assessment cell with aligned scores.
 
     Args:
         zta_assessment: Zero Trust Assessment dictionary containing sensor_config, os, and overall scores
+        wide: If True, use full format; if False, use compact format
 
     Returns:
         Formatted string with Rich markup showing (sensor_config/os) overall or N/A
@@ -345,6 +373,12 @@ def format_zta_cell(zta_assessment: Optional[Dict]) -> str:
     sensor_config = zta_assessment.get('sensor_config', 0)
     os_score = zta_assessment.get('os', 0)
     overall = zta_assessment.get('overall', 0)
+
+    if not wide:
+        sensor_str = str(sensor_config) if isinstance(sensor_config, int) else "-"
+        os_str = str(os_score) if isinstance(os_score, int) else "-"
+        overall_str = str(overall) if isinstance(overall, int) else "-"
+        return f"[dim]{sensor_str}/{os_str}[/dim]:[bold]{overall_str}[/bold]"
 
     # Format each number with 3-character width, right-aligned
     sensor_str = f"{sensor_config:>3}" if isinstance(sensor_config, int) else "  -"

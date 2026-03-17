@@ -1,5 +1,6 @@
 """Configuration file utilities for loading and parsing YAML config files."""
 import yaml
+from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 
 
 def _load_config_defaults(config):
@@ -57,13 +58,12 @@ def _load_config_defaults(config):
                 policies_dict.update(item)
         config['ttl']['policies'] = policies_dict
 
+    # Derived from POLICY_TYPE_REGISTRY — ttl_config_key values preserve backward-compat
+    # naming (e.g. 'devicecontrol_policy', 'content_policy', 'rtr_policy').
     policy_ttl_defaults = {
-        'prevention_policy': 600,
-        'devicecontrol_policy': 600,
-        'firewall_policy': 600,
-        'sensor_update_policy': 600,
-        'content_policy': 600,
-        'rtr_policy': 600
+        v['ttl_config_key']: 600
+        for v in POLICY_TYPE_REGISTRY.values()
+        if v.get('ttl_config_key')
     }
     for policy, default_ttl in policy_ttl_defaults.items():
         config['ttl']['policies'][policy] = config['ttl']['policies'].get(policy, default_ttl)

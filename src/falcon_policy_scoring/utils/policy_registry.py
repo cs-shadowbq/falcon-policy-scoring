@@ -1,13 +1,19 @@
 """Policy type registry for centralized policy metadata."""
 from typing import Dict, List, Optional
 from .models import PolicyTypeInfo
+from .constants import POLICY_TYPE_REGISTRY
 
 
 class PolicyTypeRegistry:
     """Registry for policy type metadata."""
 
     def __init__(self):
-        """Initialize the policy type registry."""
+        """Initialize the policy type registry.
+
+        Builds PolicyTypeInfo objects from POLICY_TYPE_REGISTRY (Layer 1 constants)
+        and attaches grader_func callables via a deferred import to avoid the
+        circular dependency: policy_registry -> falconapi.policies -> grading -> engine.
+        """
         from falcon_policy_scoring.falconapi.policies import (
             fetch_grade_and_store_prevention_policies,
             fetch_grade_and_store_sensor_update_policies,
@@ -16,58 +22,24 @@ class PolicyTypeRegistry:
             fetch_grade_and_store_device_control_policies,
             fetch_grade_and_store_it_automation_policies,
             fetch_grade_and_store_ods_scheduled_scan_policies,
+            fetch_grade_and_store_response_policies,
         )
 
+        # Map internal key -> fetch+grade+store callable.
+        _grader_funcs = {
+            'prevention': fetch_grade_and_store_prevention_policies,
+            'sensor_update': fetch_grade_and_store_sensor_update_policies,
+            'content_update': fetch_grade_and_store_content_update_policies,
+            'firewall': fetch_grade_and_store_firewall_policies,
+            'device_control': fetch_grade_and_store_device_control_policies,
+            'it_automation': fetch_grade_and_store_it_automation_policies,
+            'ods_scheduled_scan': fetch_grade_and_store_ods_scheduled_scan_policies,
+            'response': fetch_grade_and_store_response_policies,
+        }
+
         self._registry = {
-            'prevention': PolicyTypeInfo(
-                db_key='prevention_policies',
-                api_key='prevention',
-                display_name='Prevention',
-                cli_name='prevention',
-                grader_func=fetch_grade_and_store_prevention_policies
-            ),
-            'sensor_update': PolicyTypeInfo(
-                db_key='sensor_update_policies',
-                api_key='sensor_update',
-                display_name='Sensor Update',
-                cli_name='sensor-update',
-                grader_func=fetch_grade_and_store_sensor_update_policies
-            ),
-            'content_update': PolicyTypeInfo(
-                db_key='content_update_policies',
-                api_key='content-update',
-                display_name='Content Update',
-                cli_name='content-update',
-                grader_func=fetch_grade_and_store_content_update_policies
-            ),
-            'firewall': PolicyTypeInfo(
-                db_key='firewall_policies',
-                api_key='firewall',
-                display_name='Firewall',
-                cli_name='firewall',
-                grader_func=fetch_grade_and_store_firewall_policies
-            ),
-            'device_control': PolicyTypeInfo(
-                db_key='device_control_policies',
-                api_key='device_control',
-                display_name='Device Control',
-                cli_name='device-control',
-                grader_func=fetch_grade_and_store_device_control_policies
-            ),
-            'it_automation': PolicyTypeInfo(
-                db_key='it_automation_policies',
-                api_key='it-automation',
-                display_name='IT Automation',
-                cli_name='it-automation',
-                grader_func=fetch_grade_and_store_it_automation_policies
-            ),
-            'ods_scheduled_scan': PolicyTypeInfo(
-                db_key='ods_scheduled_scan_policies',
-                api_key='ods-scheduled-scan',
-                display_name='ODS Scheduled Scan',
-                cli_name='ods-scheduled-scan',
-                grader_func=fetch_grade_and_store_ods_scheduled_scan_policies
-            ),
+            key: PolicyTypeInfo(**data, grader_func=_grader_funcs.get(key))
+            for key, data in POLICY_TYPE_REGISTRY.items()
         }
 
     def get(self, policy_type: str) -> Optional[PolicyTypeInfo]:
@@ -110,6 +82,14 @@ class PolicyTypeRegistry:
             List of policy type keys
         """
         return list(self._registry.keys())
+
+    def get_gradable_types(self) -> List[str]:
+        """Get list of policy type keys that are graded (excludes fetch-only types).
+
+        Returns:
+            List of gradable policy type keys
+        """
+        return [k for k, v in self._registry.items() if v.gradable]
 
 
 # Global registry instance

@@ -28,12 +28,30 @@ class PolicyTypeInfo:
         api_key: API key for policy retrieval
         display_name: Human-readable display name
         cli_name: CLI argument name
-        grader_func: Function to grade this policy type
+        gradable: Whether this policy type is graded (False for fetch-only types)
+        narrow_header: Abbreviated column header for compact host tables
+        table_header: Column header for wide host tables
+        status_key: Key used in host row dicts for this policy's status
+        ttl_config_key: Key used in config TTL policies dict
+        api_command: FalconPy command name for fetching policies
+        api_limit: API fetch page size limit
+        api_weblink: FalconPy documentation URL
+        is_shim: Whether the api_command is a custom shim rather than a direct SDK method
+        grader_func: Function to fetch, grade, and store this policy type
     """
     db_key: str
     api_key: str
     display_name: str
     cli_name: str
+    gradable: bool = True
+    narrow_header: str = ''
+    table_header: str = ''
+    status_key: str = ''
+    ttl_config_key: str = ''
+    api_command: str = ''
+    api_limit: int = 5000
+    api_weblink: str = ''
+    is_shim: bool = False
     grader_func: Optional[Callable] = None
 
 
