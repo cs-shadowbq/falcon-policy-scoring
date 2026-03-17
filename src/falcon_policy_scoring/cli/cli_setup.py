@@ -222,8 +222,14 @@ def parse_arguments() -> argparse.Namespace:
         default='platform',
         help='Sort policies by: platform (default), name, or score'
     )
-
-    # Subcommand: hosts
+    policies_parser.add_argument(
+        '--wide',
+        dest='wide',
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help='Wide output with full status labels and column names (default: true). '
+             'Use --wide=false for compact symbols and abbreviated headers.'
+    )
     hosts_parser = subparsers.add_parser(
         'hosts',
         help='Display host-level policy status summary',
@@ -253,8 +259,14 @@ def parse_arguments() -> argparse.Namespace:
         default='platform',
         help='Sort hosts by: platform (default), hostname, or status (failed first)'
     )
-
-    # Subcommand: host (singular)
+    hosts_parser.add_argument(
+        '--wide',
+        dest='wide',
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help='Wide output with full status labels and column names (default: true). '
+             'Use --wide=false for compact symbols and abbreviated headers.'
+    )
     host_parser = subparsers.add_parser(
         'host',
         help='Display detailed policy status for a specific host',
@@ -276,8 +288,14 @@ def parse_arguments() -> argparse.Namespace:
         action='store_true',
         help='Show detailed failure information for failed policies'
     )
-
-    # Subcommand: generate-schema
+    host_parser.add_argument(
+        '--wide',
+        dest='wide',
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help='Wide output with full status labels and column names (default: true). '
+             'Use --wide=false for compact symbols and abbreviated headers.'
+    )
     schema_parser = subparsers.add_parser(
         'generate-schema',
         help='Generate JSON schema for policy-audit output',

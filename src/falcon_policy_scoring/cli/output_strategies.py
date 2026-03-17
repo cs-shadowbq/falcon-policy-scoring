@@ -54,6 +54,8 @@ class TextOutputStrategy(OutputStrategy):
         policy_records = fetch_all_graded_policies(adapter, cid)
 
         # Handle host-specific views
+        wide = getattr(args, 'wide', True)
+
         if args.show_hosts and args.hostname and getattr(args, 'details', False):
             # Show host summary table for specific host, then details
             host_data = collect_host_data(adapter, cid, policy_records, config)
@@ -63,7 +65,7 @@ class TextOutputStrategy(OutputStrategy):
                 sorted_hosts = sort_hosts(filtered_hosts, args.sort_hosts)
                 # Determine which policy types to display in the table
                 policy_types_to_display = determine_policy_types_to_display(args.policy_type)
-                table = build_host_table(sorted_hosts, context, config, policy_types_to_display)
+                table = build_host_table(sorted_hosts, context, config, policy_types_to_display, wide=wide)
                 context.console.print(table)
 
                 # Calculate stats and cache info
@@ -168,7 +170,7 @@ class TextOutputStrategy(OutputStrategy):
                 sorted_hosts = sort_hosts(filtered_hosts, args.sort_hosts)
                 # Determine which policy types to display in the table
                 policy_types_to_display = determine_policy_types_to_display(args.policy_type)
-                table = build_host_table(sorted_hosts, context, config, policy_types_to_display)
+                table = build_host_table(sorted_hosts, context, config, policy_types_to_display, wide=wide)
                 context.console.print(table)
 
                 # Calculate stats and cache info
@@ -208,7 +210,7 @@ class TextOutputStrategy(OutputStrategy):
                         filtered_policies = filter_policies(policies, args.platform, policy_status)
                         sorted_policies = sort_policies(filtered_policies, args.sort_policies)
 
-                        print_policy_table(graded_record, policy_type, config, sorted_policies, context)
+                        print_policy_table(graded_record, policy_type, config, sorted_policies, context, wide=wide)
 
                         if getattr(args, 'details', False):
                             print_policy_details(graded_record, policy_type, context)
@@ -222,7 +224,7 @@ class TextOutputStrategy(OutputStrategy):
                     sorted_hosts = sort_hosts(filtered_hosts, args.sort_hosts)
                     # Determine which policy types to display in the table
                     policy_types_to_display = determine_policy_types_to_display(args.policy_type)
-                    table = build_host_table(sorted_hosts, context, config, policy_types_to_display)
+                    table = build_host_table(sorted_hosts, context, config, policy_types_to_display, wide=wide)
                     context.console.print(table)
 
                     # Calculate stats and cache info
