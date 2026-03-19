@@ -1,0 +1,25 @@
+{
+  "platform_requirements": [
+    {
+      "platform_name": "Windows",
+      "policy_requirements": {
+        "is_enabled": true,
+        "has_rule_groups": true
+      }
+    },
+    {
+      "platform_name": "Linux",
+      "policy_requirements": {
+        "is_enabled": true,
+        "has_rule_groups": true
+      }
+    },
+    {
+      "platform_name": "Mac",
+      "policy_requirements": {
+        "is_enabled": true,
+        "has_rule_groups": true
+      }
+    }
+  ]
+}

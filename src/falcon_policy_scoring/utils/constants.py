@@ -178,6 +178,21 @@ POLICY_TYPE_REGISTRY = {
         'api_weblink': 'https://www.falconpy.io/Service-Collections/Response-Policies.html#querycombinedrtresponsepolicies',
         'is_shim': False,
     },
+    'sca': {
+        'db_key': 'sca_policies',
+        'api_key': 'sca',
+        'display_name': 'Secure Config Assessment',
+        'cli_name': 'sca',
+        'gradable': True,
+        'narrow_header': 'SCA',
+        'table_header': 'SCA',
+        'status_key': 'sca_status',
+        'ttl_config_key': 'sca_policy',
+        'api_command': 'query_combined_sca_policies',
+        'api_limit': 5000,
+        'api_weblink': 'https://www.falconpy.io/Service-Collections/Configuration-Assessment.html#getcombinedassessmentsquery',
+        'is_shim': True,
+    },
 }
 
 

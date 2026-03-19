@@ -6,6 +6,31 @@ Shared between CLI and daemon modules.
 from typing import Dict, List, Optional
 
 
+def _get_sca_status(device_id: str, sca_coverage_index: Dict) -> str:
+    """Determine Secure Configuration Assessment status for a single host.
+
+    Hosts that appear in the SCA coverage index (i.e. have at least one finding)
+    are considered PASSED — their policy is both enabled and has rule groups
+    configured.  Hosts absent from the index FAIL.  If the coverage index has
+    not been populated yet, the status is NOT GRADED.
+
+    Args:
+        device_id: Host device ID
+        sca_coverage_index: Dict mapping device_id -> finding metadata dict
+
+    Returns:
+        Status string: 'PASSED', 'FAILED', or 'NOT GRADED'
+    """
+    if not sca_coverage_index:
+        return "NOT GRADED"
+
+    coverage = sca_coverage_index.get(device_id)
+    if coverage is None:
+        return "FAILED"
+
+    return "PASSED" if coverage.get('has_findings', False) else "FAILED"
+
+
 def _get_ods_status(device_id: str, platform: str, graded_ods_record: Optional[Dict],
                     coverage_index: Dict) -> str:
     """Determine ODS scheduled scan status for a single host.
@@ -104,6 +129,10 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
     ods_coverage_index = ods_coverage_record.get('coverage_index', {}) if ods_coverage_record else {}
     ods_last_compliant_scan_times = ods_coverage_record.get('last_compliant_scan_times', {}) if ods_coverage_record else {}
 
+    # Load SCA coverage index once before iterating hosts
+    sca_coverage_record = adapter.get_sca_coverage(cid)
+    sca_coverage_index = sca_coverage_record.get('coverage_index', {}) if sca_coverage_record else {}
+
     host_rows = []
 
     for host in hosts_in_db['hosts']:
@@ -145,6 +174,9 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
         )
         ods_last_compliant_scan = ods_last_compliant_scan_times.get(device_id, '')
 
+        # SCA status (all platforms, based on findings coverage index)
+        sca_status = _get_sca_status(device_id, sca_coverage_index)
+
         # Fetch Zero Trust Assessment data (if enabled)
         zta_assessment = None
         include_zta = config.get('host_fetching', {}).get('include_zta', True) if config else True
@@ -160,7 +192,7 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
         # Determine overall status
         statuses = [prevention_status, sensor_update_status, content_update_status,
                     firewall_status, device_control_status, it_automation_status,
-                    ods_scheduled_scan_status, response_status]
+                    ods_scheduled_scan_status, response_status, sca_status]
         has_any_failed = any(s == "FAILED" for s in statuses)
         has_any_ungradable = any(s == "UNGRADABLE" for s in statuses)
         all_policies_passed = all(s in ("PASSED", "N/A") for s in statuses) and any(s == "PASSED" for s in statuses)
@@ -178,6 +210,7 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
             'ods_scheduled_scan_status': ods_scheduled_scan_status,
             'ods_last_compliant_scan': ods_last_compliant_scan,
             'response_status': response_status,
+            'sca_status': sca_status,
             'zta_assessment': zta_assessment,
             'all_passed': all_policies_passed,
             'any_failed': has_any_failed,

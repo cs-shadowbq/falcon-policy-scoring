@@ -22,6 +22,10 @@ from falcon_policy_scoring.falconapi.it_automation import (
     query_combined_it_automation_policies,
     fetch_it_automation_policies
 )
+from falcon_policy_scoring.falconapi.sca import (
+    query_combined_sca_policies,
+    fetch_sca_policies
+)
 
 __all__ = [
     # CID functions
@@ -47,5 +51,8 @@ __all__ = [
     'fetch_policy_settings',
     # IT Automation
     'query_combined_it_automation_policies',
-    'fetch_it_automation_policies'
+    'fetch_it_automation_policies',
+    # SCA
+    'query_combined_sca_policies',
+    'fetch_sca_policies'
 ]

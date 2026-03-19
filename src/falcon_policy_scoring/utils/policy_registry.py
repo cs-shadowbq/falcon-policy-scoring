@@ -23,6 +23,7 @@ class PolicyTypeRegistry:
             fetch_grade_and_store_it_automation_policies,
             fetch_grade_and_store_ods_scheduled_scan_policies,
             fetch_grade_and_store_response_policies,
+            fetch_grade_and_store_sca_policies,
         )
 
         # Map internal key -> fetch+grade+store callable.
@@ -35,6 +36,7 @@ class PolicyTypeRegistry:
             'it_automation': fetch_grade_and_store_it_automation_policies,
             'ods_scheduled_scan': fetch_grade_and_store_ods_scheduled_scan_policies,
             'response': fetch_grade_and_store_response_policies,
+            'sca': fetch_grade_and_store_sca_policies,
         }
 
         self._registry = {

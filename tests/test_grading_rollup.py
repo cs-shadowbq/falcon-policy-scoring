@@ -379,6 +379,9 @@ class TestPolicyToHostRollup:
             def get_ods_scan_coverage(self, cid):
                 return None
 
+            def get_sca_coverage(self, cid):
+                return None
+
         # Policy records - prevention FAILED, all others PASSED
         policy_records = {
             'prevention': {
@@ -468,6 +471,10 @@ class TestPolicyToHostRollup:
                 # device-1 is covered by passing scan ods-1
                 return {'coverage_index': {'device-1': ['ods-1']}}
 
+            def get_sca_coverage(self, cid):
+                # device-1 has SCA findings → PASSED
+                return {'coverage_index': {'device-1': {'policy_id': 'sca-1', 'policy_name': 'Test SCA', 'has_findings': True, 'finding_count': 5}}}
+
         # All policies PASSED (including ODS with coverage)
         policy_records = {
             'prevention': {'graded_policies': [{'policy_id': 'prev-1', 'passed': True}]},
@@ -527,6 +534,9 @@ class TestPolicyToHostRollup:
                 return None
 
             def get_ods_scan_coverage(self, cid):
+                return None
+
+            def get_sca_coverage(self, cid):
                 return None
 
         # Multiple policies FAILED
@@ -711,6 +721,9 @@ class TestCompleteRollupChain:
             def get_ods_scan_coverage(self, cid):
                 return None
 
+            def get_sca_coverage(self, cid):
+                return None
+
         policy_records = {
             'prevention': {
                 'graded_policies': [policy_result]
@@ -788,6 +801,9 @@ class TestCompleteRollupChain:
                 return None
 
             def get_ods_scan_coverage(self, cid):
+                return None
+
+            def get_sca_coverage(self, cid):
                 return None
 
         policy_records = {

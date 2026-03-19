@@ -322,6 +322,7 @@ class DaemonRunner:
             # Generate and write reports
             self._write_policy_report(policy_results, run)
             self._write_host_report(total_hosts, run)
+            self._write_sca_scan_report()
             self._write_host_details_report()
 
             # Update health check
@@ -412,6 +413,18 @@ class DaemonRunner:
             logger.error("Report generation error: %s", e, exc_info=True)
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("Failed to write host details report: %s", e, exc_info=True)
+
+    def _write_sca_scan_report(self) -> None:
+        """Write SCA raw findings reference file if SCA scan data is available."""
+        try:
+            logger.info("Writing SCA scan reference report...")
+            result = self.json_writer.write_sca_scan(self.cid, self.adapter, self.config)
+            if result:
+                logger.info("SCA scan reference report written successfully")
+            else:
+                logger.debug("No SCA scan data available; skipping sca-scan report")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("Failed to write SCA scan report: %s", e, exc_info=True)
 
     def _run_cleanup(self) -> None:
         """Clean up old report files."""
