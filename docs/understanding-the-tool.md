@@ -34,6 +34,8 @@ The tool examines six types of security policies:
 
 **Zero Trust Assessment policies** evaluate how well devices adhere to zero trust principles. The tool checks that these assessments run regularly and that devices meet minimum security standards. Poor zero trust assessment policies indicate weak overall security posture. [Learn more about zero trust assessment policy grading](zero-trust-assessment-policies.md).
 
+**Secure Configuration Assessment (SCA) policies** define the security hardening rules applied to devices. The tool checks that each device's assigned SCA policy is both enabled and has rule groups configured — rule groups are what supply the actual benchmark checks CrowdStrike evaluates against your devices. A device on the built-in Default Policy, which ships with no rule groups, will always fail this check because no hardening benchmarks are being enforced. Devices under a custom policy with rule groups and active assessment findings pass. Failing this check means your devices are not being measured against any hardening standard such as CIS benchmarks or DISA STIGs. [Learn more about SCA policy grading](sca-policies.md).
+
 ## Additonal Data
 
 To provide context for policy grading, the tool also collects:
