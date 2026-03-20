@@ -110,7 +110,9 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
         policy_types = [t.strip().replace('-', '_') for t in args.policy_type.split(',')]
         output["metadata"]["filters"]["policy_types"] = policy_types
     else:
-        output["metadata"]["filters"]["policy_types"] = ["prevention", "sensor_update", "content_update", "firewall", "device_control", "it_automation"]
+        output["metadata"]["filters"]["policy_types"] = [
+            k for k, v in POLICY_TYPE_REGISTRY.items() if v.get('gradable', True)
+        ]
 
     output["metadata"]["filters"]["platform"] = args.platform
     # Use getattr to safely get status - policies subcommand has 'status', hosts/host have 'host_status'
@@ -326,6 +328,9 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
                     "ods_scheduled_scan": {
                         "status": host['ods_scheduled_scan_status'],
                         "last_compliant_scan": host.get('ods_last_compliant_scan', '')
+                    },
+                    "sca": {
+                        "status": host['sca_status']
                     }
                 },
                 "all_policies_passed": host['all_passed'],

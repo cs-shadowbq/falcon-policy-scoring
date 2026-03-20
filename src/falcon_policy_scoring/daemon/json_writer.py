@@ -170,6 +170,47 @@ class JsonWriter:
 
         return self.write_report('metrics', metrics, metadata, config)
 
+    def write_sca_scan(self, cid: str, adapter, config: Dict[str, Any]) -> Optional[Path]:
+        """Write SCA scan raw findings reference file.
+
+        Retrieves the raw SCA assessment findings and coverage index stored during
+        the last fetch cycle and writes them to a timestamped sca-scan JSON file.
+        This provides auditors with a reference copy of the underlying scan data
+        used for grading decisions.
+
+        Args:
+            cid: Customer ID
+            adapter: Database adapter
+            config: Configuration dictionary
+
+        Returns:
+            Path to written file, or None if no SCA scan data is available
+        """
+        raw_record = adapter.get_policies('sca_raw_findings', cid)
+        if not raw_record:
+            logger.warning("No SCA raw findings found for CID %s; skipping sca-scan report", cid)
+            return None
+
+        raw_findings = raw_record.get('policies', [])
+        coverage_record = adapter.get_sca_coverage(cid) or {}
+        coverage_index = coverage_record.get('coverage_index', {})
+
+        data = {
+            'summary': {
+                'total_findings': len(raw_findings),
+                'hosts_covered': len(coverage_index),
+            },
+            'coverage_index': coverage_index,
+            'raw_findings': raw_findings,
+        }
+
+        metadata = {
+            'cid': cid,
+            'database_type': config.get('db', {}).get('type', 'sqlite'),
+        }
+
+        return self.write_report('sca-scan', data, metadata, config)
+
     def write_host_details(self, adapter, cid: str, config: Dict[str, Any]) -> Path:
         """Write comprehensive host details matching the policy_audit_output.schema.json.
 

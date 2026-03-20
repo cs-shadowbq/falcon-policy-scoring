@@ -13,7 +13,8 @@ from falcon_policy_scoring.grading.graders import (
     grade_all_device_control_policies,
     grade_all_it_automation_policies,
     grade_all_ods_scheduled_scans,
-    grade_all_response_policies
+    grade_all_response_policies,
+    grade_all_sca_policies
 )
 from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 
@@ -166,6 +167,7 @@ POLICY_GRADERS = {
     'it_automation': grade_all_it_automation_policies,
     'ods_scheduled_scan': grade_all_ods_scheduled_scans,
     'response': grade_all_response_policies,
+    'sca': grade_all_sca_policies,
 }
 
 # Derived from POLICY_TYPE_REGISTRY — maps policy type key to its db_key (grading config name).

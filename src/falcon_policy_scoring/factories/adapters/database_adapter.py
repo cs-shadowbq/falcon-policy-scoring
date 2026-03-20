@@ -185,6 +185,30 @@ class DatabaseAdapter(ABC):
         """
         pass
 
+    # 'sca_scan_coverage' Table (index of device_id -> finding metadata for SCA)
+
+    @abstractmethod
+    def put_sca_coverage(self, cid, coverage_index):
+        """Store SCA coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+            coverage_index: Dict mapping device_id -> finding metadata dict
+        """
+        pass
+
+    @abstractmethod
+    def get_sca_coverage(self, cid):
+        """Get SCA coverage index for a CID.
+
+        Args:
+            cid: Customer ID
+
+        Returns:
+            dict with 'coverage_index' key, or None if not found
+        """
+        pass
+
     # CID Caching
 
     @abstractmethod

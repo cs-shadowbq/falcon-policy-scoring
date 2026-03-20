@@ -34,6 +34,10 @@ from falcon_policy_scoring.grading.graders.response import (
     grade_response_policy,
     grade_all_response_policies
 )
+from falcon_policy_scoring.grading.graders.sca import (
+    grade_sca_policy,
+    grade_all_sca_policies
+)
 
 __all__ = [
     'grade_prevention_policy',
@@ -52,4 +56,6 @@ __all__ = [
     'grade_all_ods_scheduled_scans',
     'grade_response_policy',
     'grade_all_response_policies',
+    'grade_sca_policy',
+    'grade_all_sca_policies',
 ]

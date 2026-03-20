@@ -20,12 +20,6 @@ POLICY_TYPES = {
     }
     for k, v in POLICY_TYPE_REGISTRY.items()
 }
-POLICY_TYPES['sca'] = {
-    'command': 'queryCombinedSensorUpdatePolicies',  # Secure Configuration Assessment - Placeholder TBD
-    'table_name': 'sca_policies',
-    'limit': 5000,
-    'weblink': 'https://www.falconpy.io/Service-Collections/Sensor-Update-Policies.html#querycombinedsensorupdatepolicies'
-}
 
 
 def check_scope_permission_error(response, command_name: str = None, weblink: str = None):
@@ -99,6 +93,9 @@ def get_policies(falcon, policy_type):
             if policy_type == 'it_automation':
                 from falcon_policy_scoring.falconapi import it_automation
                 response = it_automation.query_combined_it_automation_policies(falcon, limit=limit, offset=offset)
+            elif policy_type == 'sca':
+                from falcon_policy_scoring.falconapi import sca
+                response = sca.query_combined_sca_policies(falcon, limit=limit, offset=offset)
             else:
                 logging.error("Unknown shim function for policy type: %s", policy_type)
                 return {'error': 500, 'status_code': 500, 'body': {}}
@@ -767,6 +764,102 @@ def fetch_grade_and_store_ods_scheduled_scan_policies(falcon, db_adapter, cid, g
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logging.error("Error during fetch_grade_and_store_ods_scheduled_scan_policies: %s", e)
+        import traceback
+        logging.error(traceback.format_exc())
+
+    return result
+
+
+def fetch_grade_and_store_sca_policies(
+    falcon, db_adapter, cid, grading_config_file=None, verbose_print=None
+):
+    """
+    Fetch SCA virtual policies (derived from findings), then grade and store results.
+
+    SCA grading is findings-based: the public getCombinedAssessmentsQuery API
+    is used to detect which hosts have SCA findings.  The presence of findings
+    for a host confirms its policy is both enabled and has rule groups defined.
+
+    Args:
+        falcon: FalconPy API client
+        db_adapter: Database adapter instance
+        cid: Customer ID
+        grading_config_file: Optional path to grading config file.
+                            Defaults to 'config/grading/sca_policies_grading.json'
+        verbose_print: Optional callable(str) for console-visible progress messages.
+
+    Returns:
+        dict: Results including fetch status and grading summary
+    """
+    from falcon_policy_scoring.falconapi import sca as sca_module
+    from falcon_policy_scoring.grading import engine as grading_engine
+
+    result = {
+        'fetch_success': False,
+        'grade_success': False,
+        'policies_count': 0,
+        'passed_policies': 0,
+        'failed_policies': 0,
+        'permission_error': False,
+        'assist_message': None
+    }
+
+    try:
+        # Step 1: Fetch SCA findings and build virtual policies + coverage index
+        logging.info("Step 1: Fetching SCA findings and building virtual policies...")
+        policies_data = sca_module.fetch_sca_policies(
+            falcon, db_adapter, cid, force_refresh=True, verbose_print=verbose_print
+        )
+
+        if policies_data and policies_data.get('permission_error'):
+            result['permission_error'] = True
+            result['assist_message'] = policies_data.get('assist_message')
+            logging.warning("Permission error for SCA policies")
+            return result
+
+        result['policies_count'] = len(policies_data.get('policies', []) if policies_data else [])
+        if result['policies_count'] == 0:
+            logging.info("No SCA virtual policies found (no findings returned for this CID)")
+        else:
+            logging.info("Found %s virtual SCA policies", result['policies_count'])
+        result['fetch_success'] = True
+
+        # Step 2: Load grading config
+        logging.info("Step 2: Loading grading configuration...")
+        if grading_config_file:
+            logging.info("Loading grading configuration from %s", grading_config_file)
+            grading_config = grading_engine.load_grading_config(config_file=grading_config_file)
+        else:
+            logging.info("Loading default SCA policies grading configuration")
+            grading_config = grading_engine.load_grading_config('sca_policies')
+
+        if not grading_config:
+            logging.error("Failed to load grading configuration")
+            return result
+
+        # Step 3: Grade virtual policies
+        logging.info("Step 3: Grading %s virtual SCA policies...", result['policies_count'])
+        graded_results = grading_engine.grade_all_sca_policies(policies_data, grading_config)
+
+        if graded_results is None:
+            logging.error("Grading returned None")
+            return result
+
+        # Step 4: Store graded results
+        logging.info("Step 4: Storing graded results...")
+        db_adapter.put_graded_policies('sca_policies', cid, graded_results)
+
+        result['grade_success'] = True
+        result['passed_policies'] = sum(1 for r in graded_results if r.get('passed', False))
+        result['failed_policies'] = len(graded_results) - result['passed_policies']
+
+        logging.info(
+            "SCA grading complete: %s/%s policies passed",
+            result['passed_policies'], result['policies_count']
+        )
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logging.error("Error during fetch_grade_and_store_sca_policies: %s", e)
         import traceback
         logging.error(traceback.format_exc())
 

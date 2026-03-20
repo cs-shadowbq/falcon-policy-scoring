@@ -32,6 +32,7 @@ class PolicyTypeInfo:
         narrow_header: Abbreviated column header for compact host tables
         table_header: Column header for wide host tables
         status_key: Key used in host row dicts for this policy's status
+        device_policies_key: Key used in host device_policies dict (None = coverage-index based)
         ttl_config_key: Key used in config TTL policies dict
         api_command: FalconPy command name for fetching policies
         api_limit: API fetch page size limit
@@ -47,6 +48,7 @@ class PolicyTypeInfo:
     narrow_header: str = ''
     table_header: str = ''
     status_key: str = ''
+    device_policies_key: Optional[str] = None
     ttl_config_key: str = ''
     api_command: str = ''
     api_limit: int = 5000

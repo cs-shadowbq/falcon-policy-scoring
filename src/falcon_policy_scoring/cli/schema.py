@@ -114,7 +114,7 @@ def generate_host_details_schema() -> dict:
                 "type": "object",
                 "description": "Policy results by policy type",
                 "patternProperties": {
-                    "^(prevention|sensor_update|content_update|firewall|device_control|it_automation)$": {
+                    "^(prevention|sensor_update|content_update|firewall|device_control|it_automation|ods_scheduled_scan|response|sca)$": {
                         "type": "object",
                         "required": ["cache_age_seconds", "cache_ttl_seconds", "cache_expired", "total_policies", "passed_policies", "failed_policies", "score_percentage", "graded_policies"],
                         "properties": {
@@ -244,7 +244,34 @@ def generate_host_details_schema() -> dict:
                                 "content_update": {"$ref": "#/definitions/hostPolicyStatus"},
                                 "firewall": {"$ref": "#/definitions/hostPolicyStatus"},
                                 "device_control": {"$ref": "#/definitions/hostPolicyStatus"},
-                                "it_automation": {"$ref": "#/definitions/hostPolicyStatus"}
+                                "it_automation": {"$ref": "#/definitions/hostPolicyStatus"},
+                                "response": {"$ref": "#/definitions/hostPolicyStatus"},
+                                "ods_scheduled_scan": {
+                                    "type": "object",
+                                    "required": ["status"],
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": ["PASSED", "FAILED", "NOT GRADED", "N/A"],
+                                            "description": "ODS scheduled scan status (N/A for non-Windows hosts)"
+                                        },
+                                        "last_compliant_scan": {
+                                            "type": "string",
+                                            "description": "Timestamp of the last compliant scheduled scan, or empty string"
+                                        }
+                                    }
+                                },
+                                "sca": {
+                                    "type": "object",
+                                    "required": ["status"],
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": ["PASSED", "FAILED", "NOT GRADED"],
+                                            "description": "Secure Configuration Assessment status"
+                                        }
+                                    }
+                                }
                             }
                         },
                         "all_policies_passed": {
@@ -351,7 +378,7 @@ def generate_host_details_schema() -> dict:
                 "properties": {
                     "status": {
                         "type": "string",
-                        "enum": ["passed", "failed", "not-assigned", "not-graded"],
+                        "enum": ["PASSED", "FAILED", "UNGRADABLE", "NOT GRADED", "NO POLICY ASSIGNED"],
                         "description": "Policy status for the host"
                     },
                     "policy_id": {
@@ -410,7 +437,7 @@ def generate_policy_audit_schema() -> dict:
             "policies": {
                 "type": "object",
                 "patternProperties": {
-                    "^(prevention|sensor-update|content-update|firewall|device-control|it-automation)$": {
+                    "^(prevention|sensor-update|content-update|firewall|device-control|it-automation|ods-scheduled-scan|response|sca)$": {
                         "type": "object",
                         "required": ["fetch_success", "grade_success", "policies_count", "passed_policies", "failed_policies"],
                         "properties": {

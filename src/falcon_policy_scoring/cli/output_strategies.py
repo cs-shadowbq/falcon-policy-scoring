@@ -35,11 +35,11 @@ class TextOutputStrategy(OutputStrategy):
         from .sorters import sort_policies, sort_hosts
         from .formatters import (
             print_policy_table, print_policy_details,
-            build_host_table, print_host_stats
+            build_host_table, print_host_stats, format_status_cell
         )
         from .data_fetcher import collect_host_data, calculate_host_stats, find_host_by_name
         from .helpers import fetch_all_graded_policies, determine_policy_types_to_display, get_policy_status
-        from falcon_policy_scoring.utils.constants import Style
+        from falcon_policy_scoring.utils.constants import Style, POLICY_TYPE_REGISTRY
         from falcon_policy_scoring.utils.cache_helpers import (
             calculate_cache_age, get_hosts_ttl, is_cache_expired, format_cache_display_with_ttl
         )
@@ -118,44 +118,63 @@ class TextOutputStrategy(OutputStrategy):
                             return info
                     return {}
 
-                # Print each policy type - only those filtered by -t flag
-                all_policy_mappings = [
-                    ('prevention', 'Prevention', policy_records.get('prevention')),
-                    ('sensor_update', 'Sensor Update', policy_records.get('sensor_update')),
-                    ('content_update', 'Content Update', policy_records.get('content_update')),
-                    ('firewall', 'Firewall', policy_records.get('firewall')),
-                    ('device_control', 'Device Control', policy_records.get('device_control')),
-                    ('it_automation', 'IT Automation', policy_records.get('it_automation'))
+                # Load coverage indices for ODS and SCA (host-level status determination)
+                from falcon_policy_scoring.utils.host_data import _get_ods_status, _get_sca_status
+                ods_coverage_record = adapter.get_ods_scan_coverage(cid)
+                ods_coverage_index = ods_coverage_record.get('coverage_index', {}) if ods_coverage_record else {}
+                sca_coverage_record = adapter.get_sca_coverage(cid)
+                sca_coverage_index = sca_coverage_record.get('coverage_index', {}) if sca_coverage_record else {}
+
+                device_id_for_host = host_info['device_id']
+                platform_for_host = device_data.get('platform_name', 'Unknown')
+
+                # Build policy mappings from registry — display_name and device_policies_key
+                # are canonical there; filter to only the requested policy types.
+                # device_policies_key=None signals coverage-index handling (ODS).
+                policy_mappings = [
+                    (k, v['display_name'], policy_records.get(k), v['device_policies_key'])
+                    for k, v in POLICY_TYPE_REGISTRY.items()
+                    if k in policy_types_to_display
                 ]
 
-                # Filter to only show the requested policy types
-                policy_mappings = [(key, name, record) for key, name, record in all_policy_mappings if key in policy_types_to_display]
+                for policy_key, policy_display_name, graded_record, dp_key in policy_mappings:
+                    if dp_key is None:
+                        # ODS has no device_policies entry; coverage is determined via a host-group index
+                        status = _get_ods_status(device_id_for_host, platform_for_host, graded_record, ods_coverage_index)
+                        covering_scan_ids = ods_coverage_index.get(device_id_for_host, [])
+                        policy_name = ', '.join(policy_id_to_name.get(sid, sid) for sid in covering_scan_ids) if covering_scan_ids else 'No Scans Assigned'
 
-                for policy_key, policy_display_name, graded_record in policy_mappings:
-                    policy_info = _find_policy_info(device_policies, policy_key)
-                    policy_id = policy_info.get('policy_id')
-                    # Look up policy name from graded policies, fall back to device_policies, then 'Not Assigned'
-                    policy_name = policy_id_to_name.get(policy_id) if policy_id else None
-                    if not policy_name:
-                        policy_name = policy_info.get('policy_name', 'Not Assigned')
+                        context.console.print(f"[{Style.BOLD}]{policy_display_name} Policy:[/{Style.BOLD}] {policy_name}")
+                        context.console.print(f"  Status: {format_status_cell(status)}")
+                        if status == "FAILED" and graded_record and 'graded_policies' in graded_record:
+                            for scan_id in covering_scan_ids:
+                                for policy_result in graded_record['graded_policies']:
+                                    if policy_result.get('policy_id') == scan_id and not policy_result.get('passed'):
+                                        scan_name = policy_id_to_name.get(scan_id, scan_id)
+                                        context.console.print(f"  Scan '{scan_name}' Failed Checks: {policy_result.get('failures_count', 0)}/{policy_result.get('checks_count', 0)}")
+                                        break
+                    else:
+                        policy_info = _find_policy_info(device_policies, dp_key)
+                        policy_id = policy_info.get('policy_id')
 
-                    status = get_policy_status(policy_id, graded_record)
+                        # SCA: use per-host coverage index for accurate host-level status
+                        if policy_key == 'sca':
+                            status = _get_sca_status(device_id_for_host, sca_coverage_index)
+                        else:
+                            status = get_policy_status(policy_id, graded_record)
 
-                    context.console.print(f"[{Style.BOLD}]{policy_display_name} Policy:[/{Style.BOLD}] {policy_name}")
+                        # Look up policy name from graded policies, fall back to device_policies, then 'Not Assigned'
+                        policy_name = policy_id_to_name.get(policy_id) if policy_id else None
+                        if not policy_name:
+                            policy_name = policy_info.get('policy_name', 'Not Assigned')
 
-                    if status == "PASSED":
-                        context.console.print(f"  Status: [{Style.GREEN}]✓ PASSED[/{Style.GREEN}]")
-                    elif status == "FAILED":
-                        context.console.print(f"  Status: [{Style.RED}]✗ FAILED[/{Style.RED}]")
-
-                        # Show failure details
-                        if graded_record and 'graded_policies' in graded_record:
+                        context.console.print(f"[{Style.BOLD}]{policy_display_name} Policy:[/{Style.BOLD}] {policy_name}")
+                        context.console.print(f"  Status: {format_status_cell(status)}")
+                        if status == "FAILED" and graded_record and 'graded_policies' in graded_record:
                             for policy_result in graded_record['graded_policies']:
                                 if policy_result.get('policy_id') == policy_id:
                                     context.console.print(f"  Failed Checks: {policy_result.get('failures_count', 0)}/{policy_result.get('checks_count', 0)}")
                                     break
-                    else:
-                        context.console.print(f"  Status: [{Style.YELLOW}]{status}[/{Style.YELLOW}]")
 
                     context.console.print()
             else:
