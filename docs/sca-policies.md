@@ -8,6 +8,20 @@ Within CrowdStrike, SCA policy rule groups hold the actual benchmark checks. A p
 
 CrowdStrike provides a built-in Default Policy for each platform (Windows, Linux, and Mac). The Default Policy ships with no rule groups. Until you create a custom policy with rule groups and assign it to your devices, no hardening checks are taking place.
 
+## Rule Groups Are OS-Version Specific, Not Platform-Specific
+
+A critical distinction: rule groups are scoped to a specific **OS version**, not simply to a platform. A Windows rule group written for Windows 10 workstations is not applicable to a Windows Server 2019 host. If a Windows Server 2019 device is assigned to an SCA policy that only contains Windows 10 rule groups, CrowdStrike will not run any checks against that host — there are no matching rule groups for its OS version.
+
+This has a direct impact on grading: a host with zero applicable rule group checks will return no findings. The tool interprets zero findings as no active assessment, and the host will **FAIL** grading. The policy is technically assigned to the host, but it is not *applicable* to it.
+
+Common scenarios where this occurs:
+
+- A Windows Server host (2016, 2019, 2022) assigned to a policy containing only Windows 10 or Windows 11 desktop rule groups.
+- A RHEL 8 server host assigned to a policy whose only rule group targets Ubuntu 22.04.
+- A new OS version introduced into the fleet before the corresponding rule group is added to the assigned policy.
+
+To resolve this, ensure that each SCA policy contains rule groups that cover every OS version of the devices assigned to it. Separate policies for workstations and servers are a common and recommended approach.
+
 ## Why Secure Configuration Assessment Policies Matter
 
 Configuration drift is one of the most common causes of security incidents. Operating systems and applications ship with many features enabled by default for ease of use, not security. Over time, administrators make changes that weaken security posture — often to solve an immediate operational problem — and those changes persist long after the original reason for them is gone.
@@ -43,10 +57,22 @@ A policy must pass both requirements to receive a PASSED grade. In practice, the
 The tool reports SCA status at the individual host level, not just at the policy level. This reflects the fact that different devices in a large environment are often assigned to different policies — some to well-configured custom policies, others still on the Default Policy.
 
 - **PASSED** — the device's assigned SCA policy is enabled and has rule groups. Assessment findings were returned for this device, confirming that hardening checks are actively running.
-- **FAILED** — the device's assigned SCA policy is either disabled or has no rule groups. No assessment findings were returned, meaning no hardening checks are active for this device.
+- **FAILED** — the device's assigned SCA policy either has no rule groups, or all configured rule groups are for a different OS version than the device is running. In both cases no assessment findings are returned, meaning no hardening checks are active for this device.
 - **NOT GRADED** — SCA data has not yet been fetched. Run `fetch -t sca` to populate results.
 
 A large number of FAILED hosts is common in environments that have not yet built custom SCA policies. The entire fleet may still be on the Default Policy, which means zero active hardening checks across all platforms.
+
+## Policy Precedence and SCA Assignment
+
+SCA policies follow the same precedence rules as all other Falcon policies. Hosts are evaluated against policies assigned to their host groups in priority order, and the highest-priority matching policy wins.
+
+This matters for SCA because a host can be **promoted out** of a well-configured policy and into one that is not applicable for its OS version. For example:
+
+- A Windows Server 2019 host is initially in a host group assigned a policy containing a Windows Server 2019 rule group — it passes.
+- An administrator creates a broad Windows policy with only Windows 10 rule groups and assigns it at a higher priority.
+- The server is now governed by the higher-priority policy, which has no applicable rule groups for Server 2019. The host will show FAILED despite being in a valid-looking policy.
+
+When investigating unexpected FAILED status on hosts that appear to be correctly assigned, always check policy precedence in the Falcon console. The effective policy for a host may not be the most recently created or most obviously named one.
 
 ## Understanding the Results
 
@@ -54,9 +80,11 @@ A large number of FAILED hosts is common in environments that have not yet built
 
 **Windows hosts mixed between PASSED and FAILED**: This typically means some Windows devices were migrated to a custom SCA policy during a rollout, while others remain on the Default Policy. The host-level status view shows exactly which devices have been migrated.
 
+**Windows Server hosts showing FAILED despite a custom policy being assigned**: The most likely cause is that the assigned policy contains only workstation (Windows 10/11) rule groups. Server OS versions (2016, 2019, 2022) require their own rule groups. A policy assigned to a server host but containing no matching rule groups for that server OS version will produce zero findings — the host fails for the same reason as a host on the Default Policy. Add a Server-appropriate rule group to the policy.
+
 **A custom policy showing FAILED**: A policy can exist and be assigned to devices without any rule groups if it was created as a placeholder. Navigating to that policy in the Falcon console and checking whether rule groups are attached will confirm this. An empty custom policy has the same security impact as the Default Policy.
 
-**No findings returned after fetch**: If `fetch -t sca` completes but reports zero findings, this almost always means all devices in your fleet are on policies with no rule groups. The tool will still create FAILED virtual policy entries for every (policy ID, platform) pair discovered in host records, so hosts will show FAILED rather than NOT GRADED.
+**No findings returned after fetch**: If `fetch -t sca` completes but reports zero findings, this almost always means all devices in your fleet are on policies with no rule groups, or all rule groups in assigned policies target a different OS version than the hosts being evaluated. The tool will still create FAILED virtual policy entries for every (policy ID, platform) pair discovered in host records, so hosts will show FAILED rather than NOT GRADED.
 
 ## Practical Application
 
@@ -66,8 +94,10 @@ When SCA policies are failing, the remediation path depends on whether custom po
 
 **Custom policies exist but have no rule groups**: Open each custom SCA policy in the Falcon console and navigate to its rule groups tab. Add the benchmark rule groups that correspond to your compliance requirements. After saving, the next fetch cycle will begin returning findings for the devices covered by that policy.
 
+**Custom policies have rule groups but server hosts are still FAILED**: The rule groups may be OS-version specific and not applicable to the server OS versions in the policy. Check the rule group contents — a policy with only Windows 10 rule groups will produce no findings for Server 2019 or Server 2022 hosts. Add the appropriate server OS rule groups (e.g. CIS Windows Server 2019 or DISA STIG for Windows Server 2022) alongside the existing workstation rule groups, or create a dedicated policy for server hosts.
+
 **Some devices still on the Default Policy**: Identify which host groups are assigned to the Default Policy in the Falcon console. Create a new custom policy (or use an existing one with rule groups), then reassign those host groups to the custom policy. Device policy assignment changes take effect within minutes.
 
-**Policy assigned but device still showing FAILED**: If a device appears to be assigned to a custom policy with rule groups in the Falcon console but still shows FAILED in the tool, re-run `fetch -t sca` without the cache to pull fresh data. There is usually a delay of a few minutes between a policy assignment change in the console and the findings appearing in the assessment API.
+**Policy assigned but device still showing FAILED**: Two causes are worth checking. First, verify policy precedence — a higher-priority policy may be overriding the expected assignment (see [Policy Precedence and SCA Assignment](#policy-precedence-and-sca-assignment) above). Second, if precedence is correct, re-run `fetch -t sca` without the cache to pull fresh data. There is usually a delay of a few minutes between a policy assignment change in the console and the findings appearing in the assessment API.
 
 As with other policy changes, test SCA hardening rule groups on a small pilot group before assigning them fleet-wide. Some benchmark checks may conflict with custom applications or localised configuration in your environment. Applying aggressive hardening to a production fleet without testing can cause application compatibility issues.

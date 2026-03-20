@@ -28,6 +28,8 @@ def format_status_cell(status: str, wide: bool = True) -> str:
         return f"[{Style.YELLOW}]⚠ UNGRADABLE[/{Style.YELLOW}]" if wide else f"[{Style.YELLOW}]⚠[/{Style.YELLOW}]"
     if status == PolicyStatus.NOT_GRADED.value:
         return f"[{Style.YELLOW}]NOT GRADED[/{Style.YELLOW}]" if wide else f"[{Style.YELLOW}]–[/{Style.YELLOW}]"
+    if status == "N/A":
+        return f"[{Style.DIM}]— N/A[/{Style.DIM}]" if wide else f"[{Style.DIM}]—[/{Style.DIM}]"
     # NO POLICY ASSIGNED
     return f"[{Style.DIM}]NO POLICY[/{Style.DIM}]" if wide else f"[{Style.DIM}]ⁿ/ₐ[/{Style.DIM}]"
 
@@ -95,17 +97,14 @@ def format_policy_table_row(policy: Dict, wide: bool = True) -> tuple:
 
     # Determine status
     if grading_status == 'ungradable':
-        status_icon = "⚠"
-        status_color = Style.YELLOW
+        status = "UNGRADABLE"
         score_display = "N/A"
         score_style = Style.YELLOW
         checks_display = "N/A" if not wide else "ungradable"
         checks_style = Style.YELLOW
         checks_suffix = ""
     elif policy.get('passed', False):
-        status_icon = "✓"
-        status_color = Style.GREEN
-        # Calculate score
+        status = "PASSED"
         if checks_count > 0:
             score_pct = calculate_score_percentage(checks_count, failures_count)
             score_display = f"{score_pct:.1f}%"
@@ -113,31 +112,24 @@ def format_policy_table_row(policy: Dict, wide: bool = True) -> tuple:
         else:
             score_display = "N/A"
             score_style = Style.DIM
-        # Format checks display
         checks_display = f"{failures_count}/{checks_count}"
         checks_style = Style.GREEN
         checks_suffix = "" if not wide else " failed"
     else:
-        status_icon = "✗"
-        status_color = Style.RED
-        # Calculate score
+        status = "FAILED"
         if checks_count > 0:
             score_pct = calculate_score_percentage(checks_count, failures_count)
             score_display = f"{score_pct:.1f}%"
-            if score_pct >= 80:
-                score_style = Style.YELLOW
-            else:
-                score_style = Style.RED
+            score_style = Style.YELLOW if score_pct >= 80 else Style.RED
         else:
             score_display = "N/A"
             score_style = Style.DIM
-        # Format checks display
         checks_display = f"{failures_count}/{checks_count}"
         checks_style = Style.RED
         checks_suffix = "" if not wide else " failed"
 
     return (
-        f"[{status_color}]{status_icon}[/{status_color}]",
+        format_status_cell(status, wide=False),
         policy_name,
         platform_name,
         f"[{checks_style}]{checks_display}[/{checks_style}]{checks_suffix}",

@@ -159,7 +159,13 @@ def fetch_and_grade_all_policies(falcon, adapter, cid: str, policy_types: list, 
             ctx.log_verbose(f"Fetching and grading {policy_info.display_name} policies...")
 
             with ctx.console.status(f"[{Style.BOLD}][{Style.GREEN}]Fetching {policy_info.display_name} policies...[/{Style.GREEN}][/{Style.BOLD}]"):
-                result = policy_info.grader_func(falcon, adapter, cid)
+                if policy_type == 'sca' and ctx.verbose:
+                    result = policy_info.grader_func(
+                        falcon, adapter, cid,
+                        verbose_print=ctx.log_verbose,
+                    )
+                else:
+                    result = policy_info.grader_func(falcon, adapter, cid)
 
             # Show results
             if not ctx.json_output_mode:

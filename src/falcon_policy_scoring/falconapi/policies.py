@@ -770,7 +770,9 @@ def fetch_grade_and_store_ods_scheduled_scan_policies(falcon, db_adapter, cid, g
     return result
 
 
-def fetch_grade_and_store_sca_policies(falcon, db_adapter, cid, grading_config_file=None):
+def fetch_grade_and_store_sca_policies(
+    falcon, db_adapter, cid, grading_config_file=None, verbose_print=None
+):
     """
     Fetch SCA virtual policies (derived from findings), then grade and store results.
 
@@ -784,6 +786,7 @@ def fetch_grade_and_store_sca_policies(falcon, db_adapter, cid, grading_config_f
         cid: Customer ID
         grading_config_file: Optional path to grading config file.
                             Defaults to 'config/grading/sca_policies_grading.json'
+        verbose_print: Optional callable(str) for console-visible progress messages.
 
     Returns:
         dict: Results including fetch status and grading summary
@@ -804,7 +807,9 @@ def fetch_grade_and_store_sca_policies(falcon, db_adapter, cid, grading_config_f
     try:
         # Step 1: Fetch SCA findings and build virtual policies + coverage index
         logging.info("Step 1: Fetching SCA findings and building virtual policies...")
-        policies_data = sca_module.fetch_sca_policies(falcon, db_adapter, cid, force_refresh=True)
+        policies_data = sca_module.fetch_sca_policies(
+            falcon, db_adapter, cid, force_refresh=True, verbose_print=verbose_print
+        )
 
         if policies_data and policies_data.get('permission_error'):
             result['permission_error'] = True
