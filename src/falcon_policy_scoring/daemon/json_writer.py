@@ -211,7 +211,8 @@ class JsonWriter:
 
         return self.write_report('sca-scan', data, metadata, config)
 
-    def write_host_details(self, adapter, cid: str, config: Dict[str, Any]) -> Path:        """Write comprehensive host details matching the policy_audit_output.schema.json.
+    def write_host_details(self, adapter, cid: str, config: Dict[str, Any]) -> Path:
+        """Write comprehensive host details matching the policy_audit_output.schema.json.
 
         This generates the same output as './bin/policy-audit hosts --output json'
         with full policy grading and host information.
