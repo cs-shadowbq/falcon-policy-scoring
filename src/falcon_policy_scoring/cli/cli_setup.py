@@ -475,7 +475,7 @@ def setup_database(config, ctx):
         ctx.log_verbose("Connecting to database...")
         db_type = config.get('db', {}).get('type', 'tiny_db')
         adapter = DatabaseFactory.create_adapter(db_type)
-        adapter.connect(config[db_type])
+        adapter.connect(config[DatabaseFactory.get_config_key(db_type)])
         return adapter
     except Exception as e:
         raise DatabaseError(f"Failed to connect to database: {e}") from e

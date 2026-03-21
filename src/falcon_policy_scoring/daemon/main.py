@@ -108,7 +108,7 @@ class DaemonRunner:
         # Initialize database
         db_type = self.config.get('db', {}).get('type', 'sqlite')
         self.adapter = DatabaseFactory.create_adapter(db_type)
-        self.adapter.connect(self.config[db_type])
+        self.adapter.connect(self.config[DatabaseFactory.get_config_key(db_type)])
         logger.info("Database initialized: %s", db_type)
 
         # Initialize Falcon API client
