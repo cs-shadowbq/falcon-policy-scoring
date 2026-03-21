@@ -8,6 +8,29 @@ tiny_db:
 sqlite:
   path: ./data/db.sqlite
 
+# DynamoDB (local Dynalite): set db.type: dynalite
+dynalite:
+  path: ./data/dynalite.db            # Path used when starting the local Dynalite server
+  endpoint_url: http://localhost:4567  # Dynalite endpoint (default)
+  # region: us-east-1                 # Optional; defaults to us-east-1
+
+# DynamoDB (real AWS): set db.type: dynamodb
+dynamodb:
+  region: us-east-1
+  # aws_access_key_id and aws_secret_access_key are optional;
+  # leave unset to use IAM role / environment variables (recommended)
+  # aws_access_key_id: YOUR_ACCESS_KEY
+  # aws_secret_access_key: YOUR_SECRET_KEY
+
+# CrowdStrike Foundry Collections: set db.type: foundry_collections
+foundry_collections:
+  app_id: "falcon-policy-scoring"  # X-CS-APP-ID header (required)
+  # In Foundry runtime no credentials are needed — the platform injects them.
+  # For external / CI access, provide falcon credentials below:
+  # client_id: YOUR_CLIENT_ID
+  # client_secret: YOUR_CLIENT_SECRET
+  # base_url: US2
+
 ttl:
   default: 600 # Default Time-To-Live for records in seconds
   hosts: 300 # Host records TTL in seconds
