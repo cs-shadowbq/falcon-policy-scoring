@@ -310,6 +310,8 @@ def normalize_it_automation_config(grading_config):
     platform_requirements = []
 
     for platform_name, requirements in grading_config.items():
+        if platform_name == 'metadata':
+            continue
         platform_requirements.append({
             'platform_name': platform_name,
             'policy_requirements': requirements

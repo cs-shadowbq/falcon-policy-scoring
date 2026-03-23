@@ -1,4 +1,12 @@
 {
+  "metadata": {
+    "policy_type": "ods_scheduled_scan_policies",
+    "version": "1.0.0",
+    "description": "Grading standards for CrowdStrike Falcon On-Demand Scan scheduled scan policies",
+    "authors": [{"name": "Scott MacGregor", "company": "CrowdStrike"}],
+    "last_modified": "2026-03-23",
+    "references": []
+  },
   "platform_requirements": [
     {
       "platform_name": "Windows",

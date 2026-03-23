@@ -1,4 +1,12 @@
 {
+  "metadata": {
+    "policy_type": "content_update_policies",
+    "version": "1.0.0",
+    "description": "Grading standards for CrowdStrike Falcon Content Update policies",
+    "authors": [{"name": "Scott MacGregor", "company": "CrowdStrike"}],
+    "last_modified": "2026-03-23",
+    "references": []
+  },
   "policies": [
     {
       "platform_name": "all",
