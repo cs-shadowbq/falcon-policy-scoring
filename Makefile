@@ -39,7 +39,7 @@ help:
 	@echo "Environment Variables:"
 	@echo "  REGISTRY=registry.com    Docker registry (required for push)"
 	@echo "  TAG=version              Docker image tag (default: latest)"
-	@echo "  AIRGAP_PYTHON=39,311     Python versions for airgap bundles (default: 39,311)"
+	@echo "  AIRGAP_PYTHON=39,311,312 Python versions for airgap bundles (default: 39,311,312)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make dist                          Build wheel"
@@ -176,7 +176,7 @@ requirements:
 #   REGISTRY=ghcr.io/myorg TAG=dev make docker-push
 
 TAG ?= latest
-AIRGAP_PYTHON ?= 39,311
+AIRGAP_PYTHON ?= 39,311,312
 
 # Extract version from pyproject.toml
 VERSION := $(shell python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || python3 -c "import tomli as tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || echo "0.0.0")

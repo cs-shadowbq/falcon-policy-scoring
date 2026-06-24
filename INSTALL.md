@@ -34,9 +34,10 @@ From the [GitHub Releases](https://github.com/cs-shadowbq/falcon-policy-scoring/
 page, download the appropriate airgap bundle:
 
 | Bundle | Target |
-|--------|--------|
-| `falcon-policy-scoring-*-airgap-rhel9-cp39-x86_64.tar.gz` | Python 3.9 (RHEL 9 default) |
+| ------ | ------ |
+| `falcon-policy-scoring-*-airgap-rhel9-cp39-x86_64.tar.gz` | Python 3.9 (RHEL 9.0-9.3 default) |
 | `falcon-policy-scoring-*-airgap-rhel9-cp311-x86_64.tar.gz` | Python 3.11 |
+| `falcon-policy-scoring-*-airgap-rhel9-cp312-x86_64.tar.gz` | Python 3.12 (RHEL 9.4+ AppStream) |
 
 ### Install on Target
 
@@ -81,12 +82,13 @@ make airgap AIRGAP_PYTHON=39
 
 Outputs land in `dist/`:
 
-```
+```text
 dist/
 ├── falcon_policy_scoring-1.8.0-py3-none-any.whl
 ├── falcon-policy-scoring-1.8.0.tar.gz
 ├── falcon-policy-scoring-1.8.0-airgap-rhel9-cp39-x86_64.tar.gz
-└── falcon-policy-scoring-1.8.0-airgap-rhel9-cp311-x86_64.tar.gz
+├── falcon-policy-scoring-1.8.0-airgap-rhel9-cp311-x86_64.tar.gz
+└── falcon-policy-scoring-1.8.0-airgap-rhel9-cp312-x86_64.tar.gz
 ```
 
 Each airgap bundle contains:
