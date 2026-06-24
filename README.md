@@ -3,7 +3,10 @@
 > Continuous security policy compliance monitoring for CrowdStrike Falcon environments
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
-[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.9_airgap-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.11_airgap-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.12_airgap-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.14-b3e0a2.svg)](https://www.python.org/downloads/)
 [![Container](https://img.shields.io/badge/container-UBI9-red.svg)](https://catalog.redhat.com/software/containers/ubi9/python-312/657b08d023df896ebfacf402)
 [![Tests](https://github.com/cs-shadowbq/falcon-policy-scoring/actions/workflows/test.yml/badge.svg)](https://github.com/cs-shadowbq/falcon-policy-scoring/actions/workflows/test.yml)
 
