@@ -1,4 +1,4 @@
-.PHONY: docs clean docs-serve install test test-coverage test-coverage-serve workflows run help requirements docker-build docker-test docker-push k8s-deploy k8s-delete run-daemon
+.PHONY: docs clean docs-serve install test test-coverage test-coverage-serve workflows run help requirements docker-build docker-test docker-push k8s-deploy k8s-delete run-daemon dist dist-clean airgap release
 
 help:
 	@echo "Available Make Targets:"
@@ -22,6 +22,12 @@ help:
 	@echo "  install                  Install all dependencies"
 	@echo "  requirements             Generate requirements.txt files from pyproject.toml"
 	@echo ""
+	@echo "Distribution Targets:"
+	@echo "  dist                     Build wheel and sdist"
+	@echo "  dist-clean               Clean dist/ and build artifacts"
+	@echo "  airgap                   Build airgap bundles (RHEL 9 x86_64)"
+	@echo "  release                  Create GitHub release with all artifacts (via gh CLI)"
+	@echo ""
 	@echo "Daemon Mode Targets:"
 	@echo "  run-daemon               Run daemon locally"
 	@echo "  docker-build             Build Docker image [TAG=version]"
@@ -33,8 +39,13 @@ help:
 	@echo "Environment Variables:"
 	@echo "  REGISTRY=registry.com    Docker registry (required for push)"
 	@echo "  TAG=version              Docker image tag (default: latest)"
+	@echo "  AIRGAP_PYTHON=39,311     Python versions for airgap bundles (default: 39,311)"
 	@echo ""
 	@echo "Examples:"
+	@echo "  make dist                          Build wheel"
+	@echo "  make airgap                        Build airgap bundles for Python 3.9 + 3.11"
+	@echo "  make airgap AIRGAP_PYTHON=39       Build only Python 3.9 bundle"
+	@echo "  make release                       Push dist + airgap to GitHub release"
 	@echo "  make docker-build TAG=v1.0.0"
 	@echo "  export REGISTRY=docker.io/myuser && make docker-push"
 	@echo "  REGISTRY=ghcr.io/org TAG=dev make docker-push"
@@ -53,7 +64,7 @@ docs:
 	sphinx-apidoc -o docs/source src/falcon_policy_scoring
 	cd docs && make html
 
-clean:
+clean: dist-clean clean-test
 	@rm -rf data/*.json data/*.db data/*.sqlite && echo 'Cleaned database files in data/'
 	@rm -rf logs/*.log && echo 'Cleaned log files in logs/'
 	@rm -f results.json && echo 'Cleaned results.json'
@@ -165,9 +176,77 @@ requirements:
 #   REGISTRY=ghcr.io/myorg TAG=dev make docker-push
 
 TAG ?= latest
+AIRGAP_PYTHON ?= 39,311
 
 # Extract version from pyproject.toml
-VERSION := $(shell python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || echo "0.0.0")
+VERSION := $(shell python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || python3 -c "import tomli as tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || echo "0.0.0")
+
+# --- Distribution targets ---
+
+dist: dist-clean
+	@echo "Building wheel and sdist for v$(VERSION)..."
+	python3 -m pip install --quiet build
+	python3 -m build
+	@echo ""
+	@echo "Verifying wheel installs correctly..."
+	@python3 -m pip install --quiet --force-reinstall dist/*.whl
+	@policy-audit --version
+	@echo ""
+	@echo "Artifacts:"
+	@ls -lh dist/
+
+dist-clean:
+	@rm -rf dist/ build/ src/*.egg-info
+	@echo "Cleaned dist/, build/, *.egg-info"
+
+airgap: dist
+	@echo ""
+	@echo "Building airgap bundles for Python $(AIRGAP_PYTHON)..."
+	@chmod +x scripts/build-airgap.sh
+	scripts/build-airgap.sh --python $(AIRGAP_PYTHON)
+
+release: dist airgap
+	@echo ""
+	@echo "=== Creating GitHub Release v$(VERSION) ==="
+	@if ! command -v gh &>/dev/null || ! gh auth status &>/dev/null; then \
+		echo ""; \
+		echo "gh CLI is not available or not authenticated."; \
+		echo "To publish this release manually:"; \
+		echo ""; \
+		echo "1. Tag the release:"; \
+		echo ""; \
+		echo "   git tag v$(VERSION)"; \
+		echo "   git push origin v$(VERSION)"; \
+		echo ""; \
+		echo "2. Go to: https://github.com/cs-shadowbq/falcon-policy-scoring/releases/new"; \
+		echo ""; \
+		echo "3. Select tag: v$(VERSION)"; \
+		echo "   Title: falcon-policy-scoring v$(VERSION)"; \
+		echo "   Description: Click 'Generate release notes' for changelog"; \
+		echo ""; \
+		echo "4. Attach these files from dist/:"; \
+		echo ""; \
+		ls dist/*.whl dist/*.tar.gz dist/SHA256SUMS 2>/dev/null | sort -u | sed 's/^/   /'; \
+		echo ""; \
+		echo "5. Verify checksums match dist/SHA256SUMS after upload."; \
+		echo ""; \
+	else \
+		echo ""; \
+		echo "Release artifacts:"; \
+		ls dist/*.whl dist/*.tar.gz dist/*-airgap-*.tar.gz dist/SHA256SUMS 2>/dev/null; \
+		echo ""; \
+		echo "Creating release..."; \
+		gh release create "v$(VERSION)" \
+			--title "falcon-policy-scoring v$(VERSION)" \
+			--generate-notes \
+			--notes-start-tag "$$(git tag --sort=-v:refname | sed -n '2p')" \
+			dist/*.whl \
+			dist/*.tar.gz \
+			dist/*-airgap-*.tar.gz \
+			dist/SHA256SUMS; \
+		echo ""; \
+		echo "Release published: https://github.com/cs-shadowbq/falcon-policy-scoring/releases/tag/v$(VERSION)"; \
+	fi
 
 run-daemon:
 	python bin/policy-audit daemon --config config/config.yaml --output-dir ./output --verbose

@@ -57,7 +57,7 @@ RUN mkdir -p /app/data /app/output /app/config /app/logs && \
     chmod -R g=u /app
 
 # Copy Python packages from builder
-COPY --from=builder --chown=1001:0 /opt/app-root/lib/python3.12/site-packages /opt/app-root/lib/python3.11/site-packages
+COPY --from=builder --chown=1001:0 /opt/app-root/lib/python3.12/site-packages /opt/app-root/lib/python3.12/site-packages
 
 # Copy console script from builder
 COPY --from=builder --chown=1001:0 /opt/app-root/bin/policy-audit /opt/app-root/bin/policy-audit
