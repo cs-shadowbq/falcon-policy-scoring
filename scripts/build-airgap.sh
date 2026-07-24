@@ -91,6 +91,15 @@ for PYVER in "${VERSIONS[@]}"; do
     # Copy project wheel
     cp "$PROJECT_WHEEL" "$BUNDLE_DIR/wheels/"
 
+    # Bundle runtime config (grading definitions + example config) and docs so
+    # the workspace can be prepped offline. These live at the repo root, outside
+    # the wheel, and are required at runtime relative to the working directory.
+    echo "Bundling config/ and docs/ ..."
+    cp -R "$PROJECT_DIR/config" "$BUNDLE_DIR/config"
+    if [ -d "$PROJECT_DIR/docs" ]; then
+        cp -R "$PROJECT_DIR/docs" "$BUNDLE_DIR/docs"
+    fi
+
     # Download platform-specific dependencies
     echo "Downloading dependencies for cp${PYVER} / ${PLATFORM}..."
     pip download \
@@ -201,6 +210,59 @@ EOF
     echo "Ensure ~/.local/bin is in PATH:  export PATH=\$HOME/.local/bin:\$PATH"
     echo "Run: policy-audit --help"
 fi
+
+# --- Optional workspace preparation ---------------------------------------
+# The grading definitions (config/grading/*.json) and example config live
+# alongside this installer, NOT inside the wheel. The tool reads them relative
+# to the current working directory, so prep a workspace to run from.
+echo ""
+if [ -t 0 ]; then
+    read -r -p "Prepare a workspace directory for running the tool? [y/N] " PREP_WS
+else
+    PREP_WS="n"
+    echo "Non-interactive shell detected; skipping workspace prep."
+fi
+
+if [[ "$PREP_WS" =~ ^[Yy] ]]; then
+    read -r -p "Full path to use as the workspace: " WORKSPACE
+    # Expand a leading ~ to the user's home directory
+    WORKSPACE="${WORKSPACE/#\~/$HOME}"
+
+    if [ -z "$WORKSPACE" ]; then
+        echo "No path provided; skipping workspace prep."
+    else
+        echo "Preparing workspace at: $WORKSPACE"
+        mkdir -p "$WORKSPACE"
+        mkdir -p "$WORKSPACE/data"
+        mkdir -p "$WORKSPACE/logs"
+
+        # Copy grading configs so 'config/grading/*.json' resolves at runtime
+        if [ -d "$SCRIPT_DIR/config" ]; then
+            cp -R "$SCRIPT_DIR/config" "$WORKSPACE/config"
+        else
+            echo "WARNING: bundled config/ not found next to installer; gradings unavailable."
+        fi
+
+        # Seed a config.yaml from the example if one isn't already present
+        if [ -f "$SCRIPT_DIR/config/example.config.yaml" ]; then
+            if [ -f "$WORKSPACE/config.yaml" ]; then
+                echo "Existing $WORKSPACE/config.yaml left untouched."
+            else
+                cp "$SCRIPT_DIR/config/example.config.yaml" "$WORKSPACE/config.yaml"
+            fi
+        fi
+
+        echo ""
+        echo "Workspace ready:"
+        echo "  $WORKSPACE/config.yaml     (edit with your settings)"
+        echo "  $WORKSPACE/config/grading/ (grading definitions)"
+        echo "  $WORKSPACE/data/           (database)"
+        echo "  $WORKSPACE/logs/           (logs)"
+        echo ""
+        echo "Run the tool from the workspace so relative paths resolve:"
+        echo "  cd $WORKSPACE && policy-audit -c config.yaml fetch"
+    fi
+fi
 INSTALL_EOF
     chmod +x "$BUNDLE_DIR/install.sh"
 
@@ -290,6 +352,15 @@ print(f'  {len(components)} components in sbom.cdx.json')
 \`\`\`bash
 chmod +x install.sh
 ./install.sh
+\`\`\`
+
+The installer offers to prepare a **workspace** directory. If you accept, it
+creates \`<workspace>/{config,data,logs}\`, copies the grading definitions into
+\`<workspace>/config/grading/\`, and seeds \`<workspace>/config.yaml\` from the
+example. Run the tool from that workspace so relative paths resolve:
+
+\`\`\`bash
+cd <workspace> && policy-audit -c config.yaml fetch
 \`\`\`
 
 ## Manual Install (no pip, no root)

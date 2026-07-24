@@ -114,7 +114,9 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
             k for k, v in POLICY_TYPE_REGISTRY.items() if v.get('gradable', True)
         ]
 
-    output["metadata"]["filters"]["platform"] = args.platform
+    # Use getattr to safely get platform - fetch subcommand has no --platform filter
+    platform_filter = getattr(args, 'platform', None)
+    output["metadata"]["filters"]["platform"] = platform_filter
     # Use getattr to safely get status - policies subcommand has 'status', hosts/host have 'host_status'
     output["metadata"]["filters"]["status"] = getattr(args, 'status', None)
 
@@ -155,7 +157,7 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
         policies = graded_record.get('graded_policies', [])
         # Use getattr to safely get status - policies subcommand has 'status', hosts/host have 'host_status'
         policy_status = getattr(args, 'status', None)
-        filtered_policies = filter_policies(policies, args.platform, policy_status)
+        filtered_policies = filter_policies(policies, platform_filter, policy_status)
 
         # Build policy list and calculate inline stats for building output
         policy_list = []
@@ -245,7 +247,7 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
 
         for host in host_data:
             # Apply filters
-            if args.platform and host.get('platform', '').lower() != args.platform.lower():
+            if platform_filter and host.get('platform', '').lower() != platform_filter.lower():
                 continue
 
             if args.hostname and host.get('hostname', '').lower() != args.hostname.lower():

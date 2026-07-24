@@ -1,4 +1,4 @@
-.PHONY: docs clean docs-serve install test test-coverage test-coverage-serve workflows run help requirements docker-build docker-test docker-push k8s-deploy k8s-delete run-daemon dist dist-clean airgap release
+.PHONY: docs clean docs-serve install test test-coverage test-coverage-serve workflows run help requirements docker-build docker-test docker-push k8s-deploy k8s-delete run-daemon dist dist-clean airgap release bump-patch bump-minor bump-major version
 
 help:
 	@echo "Available Make Targets:"
@@ -27,6 +27,12 @@ help:
 	@echo "  dist-clean               Clean dist/ and build artifacts"
 	@echo "  airgap                   Build airgap bundles (RHEL 9 x86_64)"
 	@echo "  release                  Create GitHub release with all artifacts (via gh CLI)"
+	@echo ""
+	@echo "Version Bump Targets (edit version in pyproject.toml):"
+	@echo "  version                  Show current version from pyproject.toml"
+	@echo "  bump-patch               Bump patch version (X.Y.Z -> X.Y.Z+1)"
+	@echo "  bump-minor               Bump minor version (X.Y.Z -> X.Y+1.0)"
+	@echo "  bump-major               Bump major version (X.Y.Z -> X+1.0.0)"
 	@echo ""
 	@echo "Daemon Mode Targets:"
 	@echo "  run-daemon               Run daemon locally"
@@ -180,6 +186,25 @@ AIRGAP_PYTHON ?= 39,311,312
 
 # Extract version from pyproject.toml
 VERSION := $(shell python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || python3 -c "import tomli as tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || echo "0.0.0")
+
+# --- Version bump targets ---
+# Bumps the version in pyproject.toml in place. Prints old -> new and a
+# suggested tag/commit workflow. Does not commit or tag automatically.
+define bump_version
+	@python3 -c "import re,sys; part='$(1)'; p='pyproject.toml'; text=open(p,encoding='utf-8').read(); m=re.search(r'^version\s*=\s*\"(\d+)\.(\d+)\.(\d+)\"',text,re.M); sys.exit('ERROR: could not find version in pyproject.toml') if not m else None; mj,mn,pt=(int(x) for x in m.groups()); new={'patch':(mj,mn,pt+1),'minor':(mj,mn+1,0),'major':(mj+1,0,0)}[part]; old_v='%d.%d.%d'%(mj,mn,pt); new_v='%d.%d.%d'%new; open(p,'w',encoding='utf-8').write(text[:m.start(1)]+new_v+text[m.end(3):]); print('Bumped version: %s -> %s'%(old_v,new_v)); print('Next: git commit -am \"Release v%s\" && git tag v%s && git push --tags'%(new_v,new_v))"
+endef
+
+version:
+	@echo "$(VERSION)"
+
+bump-patch:
+	$(call bump_version,patch)
+
+bump-minor:
+	$(call bump_version,minor)
+
+bump-major:
+	$(call bump_version,major)
 
 # --- Distribution targets ---
 
