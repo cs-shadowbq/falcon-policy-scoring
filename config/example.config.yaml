@@ -125,3 +125,8 @@ daemon:
   health_check:
     enabled: true # Enable HTTP-based health checks (default: true)
     port: 8088 # HTTP port for health checks
+    # Interface to bind the health/metrics server to. Defaults to loopback so the
+    # unauthenticated endpoint is not exposed on all interfaces (CIS/STIG hardening).
+    # Set to 0.0.0.0 to expose on all interfaces — required for Kubernetes httpGet
+    # probes, which connect to the pod IP rather than loopback.
+    bind_address: 127.0.0.1

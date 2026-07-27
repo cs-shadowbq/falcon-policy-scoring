@@ -1,0 +1,86 @@
+# systemd unit template for the Falcon Policy Audit daemon.
+#
+# This is a TEMPLATE. The airgap install.sh renders it with concrete paths for the
+# chosen layout (FHS or workspace) and installs the result to
+# /etc/systemd/system/falcon-policy-audit.service. The @PLACEHOLDER@ tokens are
+# substituted at install time:
+#
+#   @EXEC@     -> absolute path to the policy-audit CLI (e.g. /usr/local/bin/policy-audit)
+#   @CONFIG@   -> absolute path to config.yaml
+#   @OUTPUT@   -> output directory
+#   @DATA@     -> data directory (tinydb)
+#   @LOGS@     -> log directory
+#   @USER@     -> service account (default: policyaudit)
+#   @GROUP@    -> service group   (default: policyaudit)
+#
+# To install by hand instead of via install.sh, replace the tokens yourself, then:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now falcon-policy-audit
+#
+# Hardening directives below map to the controls documented in STIG_HARDENING.md.
+# Verify the applied sandbox with:  systemd-analyze security falcon-policy-audit
+#
+# IMPORTANT: ProtectHome=yes (below) makes /home and /root invisible to this
+# service. Every path this unit references (@CONFIG@, @DATA@, @OUTPUT@, @LOGS@)
+# MUST live outside home directories — use /etc, /var/lib, /var/log, /opt, or
+# /srv. Also do a one-shot `sudo -u @USER@ @EXEC@ -c @CONFIG@ fetch` to validate
+# credentials/DNS/file access before enabling the daemon, so no root-owned files
+# are left in @DATA@ that @USER@ cannot update.
+
+[Unit]
+Description=CrowdStrike Falcon Policy Audit Daemon
+Documentation=https://github.com/cs-shadowbq/falcon-policy-scoring
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GROUP@
+
+ExecStart=@EXEC@ daemon --config @CONFIG@ --output-dir @OUTPUT@
+Restart=on-failure
+RestartSec=10
+
+# --- Sandboxing / STIG hardening -------------------------------------------
+# Drop all privileges and privilege escalation.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Filesystem protection: read-only system, private tmp/home, explicit writable paths.
+ProtectSystem=strict
+ProtectHome=yes          # hides /home and /root — keep all @paths@ outside them
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=@DATA@ @OUTPUT@ @LOGS@
+
+# Kernel / cgroup / namespace protection.
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+MemoryDenyWriteExecute=yes
+
+# Network: only IPv4/IPv6 sockets (the tool talks HTTPS to the Falcon API and
+# serves a local health endpoint). No unix/netlink/packet families needed.
+RestrictAddressFamilies=AF_INET AF_INET6
+
+# Syscall allow-list: standard system-service profile, native arch only.
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+
+# Logging to journald.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=falcon-policy-audit
+
+[Install]
+WantedBy=multi-user.target

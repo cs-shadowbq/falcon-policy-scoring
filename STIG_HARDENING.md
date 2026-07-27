@@ -199,6 +199,39 @@ CMD ["/opt/python312/bin/python3.12", "/app/bin/policy-audit", "daemon", \
 
 ---
 
+## FIPS 140-2/140-3 Compatibility
+
+The application is **FIPS-compatible** and runs unmodified on a RHEL9 host with
+FIPS mode enabled.
+
+### Cryptographic inventory
+
+| Use | Algorithm | FIPS-approved | Location |
+|-----|-----------|---------------|----------|
+| Optional `client_source` hashing | SHA-256 | ✅ Yes | `src/falcon_policy_scoring/utils/metadata_builder.py` |
+| TLS to the CrowdStrike API | System OpenSSL (via `crowdstrike-falconpy`/`urllib`) | ✅ Yes | delegated to the platform |
+
+There is **no** use of MD5, SHA-1, or other non-approved primitives, and no
+bundled crypto library — TLS is provided by the system OpenSSL, which honors the
+host FIPS policy. SHA-256 is the only hashing algorithm used, and it is used for
+a non-security digest (a stable identifier), not for password/credential storage.
+
+### Enabling FIPS on the RHEL9 host
+
+FIPS is a **host** setting, not an application setting:
+
+```bash
+sudo fips-mode-setup --enable
+sudo reboot
+# Verify after reboot:
+fips-mode-setup --check      # -> "FIPS mode is enabled."
+```
+
+Once enabled, run `policy-audit fetch` and a daemon cycle to confirm no
+`hashlib`/TLS errors. No configuration change to the tool is required.
+
+---
+
 ## Additional Hardening Recommendations
 
 ### 1. Vulnerability Scanning

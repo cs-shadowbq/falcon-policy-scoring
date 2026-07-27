@@ -181,3 +181,6 @@ coverage.xml
 config/config.yaml
 config/*.config.yaml
 !config/example.config.yaml
+
+# Generated man page (produced by `make man`; source is the .include file)
+dist-templates/policy-audit.1

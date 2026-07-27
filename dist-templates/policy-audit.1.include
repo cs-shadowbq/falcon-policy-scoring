@@ -1,0 +1,72 @@
+[=DESCRIPTION]
+Evaluates CrowdStrike Falcon security policies against customizable grading
+standards, identifies configuration drift, and reports which hosts are affected
+by policy gaps. Runs interactively for ad-hoc audits or as a continuous-monitoring
+daemon.
+.PP
+Grading definitions live in \fBconfig/grading/*.json\fR and are read at runtime
+relative to the working directory. Data is cached in a local datastore (SQLite by
+default). See \fBFILES\fR and \fBENVIRONMENT\fR below.
+.PP
+
+[>ENVIRONMENT]
+.TP
+.B CLIENT_ID, CLIENT_SECRET, BASE_URL
+CrowdStrike API credentials and region. Read from the environment when not passed
+on the command line or set in the config file. ENVIRONMENT variables take
+precedence over config-file values.
+.TP
+.B FALCON_CLIENT_ID, FALCON_CLIENT_SECRET, FALCON_BASE_URL
+Same as above when the credential prefix is set to "FALCON_" in the config's
+\fBfalcon_credentials.prefix\fR key.
+
+[>FILES]
+.TP
+.B config/config.yaml
+Main configuration (datastore, TTLs, logging, daemon schedules, health check).
+Holds API credentials if not supplied via environment; keep it mode 0600.
+.TP
+.B config/grading/*.json
+Policy grading definitions applied by the grading engine.
+.TP
+.B /etc/falcon-policy-audit/config.yaml
+Default configuration location when installed as a systemd service (FHS layout).
+.TP
+.B /var/lib/falcon-policy-audit/
+Default data/output directory for the service (SQLite database, JSON reports).
+.TP
+.B /var/log/falcon-policy-audit/
+Default log directory for the service.
+
+[>EXAMPLES]
+.TP
+Fetch and grade everything using credentials from the environment:
+.B policy-audit fetch
+.TP
+Fetch only specific policy types for a host group:
+.B policy-audit fetch \-\-host-groups "MY-GROUP" \-t "it-automation"
+.TP
+Show policy-level results from the most recent cached data:
+.B policy-audit policies \-\-details
+.TP
+List hosts with any failing policy:
+.B policy-audit hosts \-\-status any-failed
+.TP
+Run as a continuous-monitoring daemon with a specific config:
+.B policy-audit daemon \-c config.yaml \-\-output-dir ./output
+
+[>SUPPORT]
+Falcon Policy Scoring is a community-driven, open source project, not a
+CrowdStrike product. As such, it carries no formal support, expressed or implied.
+For issue reporting guidance (MCVE format), questions, and confidentiality
+considerations, see the project on GitHub:
+.PP
+.B https://github.com/cs-shadowbq/falcon-policy-scoring
+.PP
+Report issues at:
+.B https://github.com/cs-shadowbq/falcon-policy-scoring/issues
+
+[>SEE ALSO]
+Project documentation, installation, hardening (STIG/FIPS), and security policy
+are distributed with the release: INSTALL.md, STIG_HARDENING.md, SECURITY.md,
+SUPPORT.md, and the docs/ directory.

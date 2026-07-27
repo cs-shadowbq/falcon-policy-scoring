@@ -311,6 +311,17 @@ class TestHealthCheck:
         assert health._status == HealthStatus.HEALTHY
         assert health._consecutive_failures == 0
 
+    def test_default_bind_address_is_loopback(self):
+        """Health server must default to loopback, not all interfaces (STIG)."""
+        health = HealthCheck()
+        assert health.bind_address == "127.0.0.1"
+
+    def test_bind_address_override(self):
+        """A configured bind address must be honored (e.g. 0.0.0.0 for k8s probes)."""
+        health = HealthCheck(port=9090, bind_address="0.0.0.0")
+        assert health.bind_address == "0.0.0.0"
+        assert health.port == 9090
+
     def test_update_success(self):
         """Test updating health after successful run."""
         health = HealthCheck()

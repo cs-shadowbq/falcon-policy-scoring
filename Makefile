@@ -1,4 +1,4 @@
-.PHONY: docs clean docs-serve install test test-coverage test-coverage-serve workflows run help requirements docker-build docker-test docker-push k8s-deploy k8s-delete run-daemon dist dist-clean airgap release bump-patch bump-minor bump-major version
+.PHONY: docs clean docs-serve install test test-coverage test-coverage-serve workflows run help requirements docker-build docker-test docker-push k8s-deploy k8s-delete run-daemon build man dist dist-clean airgap release bump-patch bump-minor bump-major version
 
 help:
 	@echo "Available Make Targets:"
@@ -23,8 +23,10 @@ help:
 	@echo "  requirements             Generate requirements.txt files from pyproject.toml"
 	@echo ""
 	@echo "Distribution Targets:"
-	@echo "  dist                     Build wheel and sdist"
-	@echo "  dist-clean               Clean dist/ and build artifacts"
+	@echo "  build                    Build wheel + sdist + man page (alias: dist + man)"
+	@echo "  dist                     Build wheel and sdist into dist/<version>/"
+	@echo "  man                      Generate man page (dist-templates/policy-audit.1)"
+	@echo "  dist-clean               Clean all dist artifacts (or 'make dist-clean X.Y.Z' for one version)"
 	@echo "  airgap                   Build airgap bundles (RHEL 9 x86_64)"
 	@echo "  release                  Create GitHub release with all artifacts (via gh CLI)"
 	@echo ""
@@ -184,8 +186,11 @@ requirements:
 TAG ?= latest
 AIRGAP_PYTHON ?= 39,311,312
 
-# Extract version from pyproject.toml
+# Extract version from pyproject.toml. Build artifacts are written to a
+# version-scoped subdirectory (dist/<version>/) so different versions never
+# mingle and SHA256SUMS only ever covers a single release.
 VERSION := $(shell python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || python3 -c "import tomli as tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || echo "0.0.0")
+DIST_DIR := dist/$(VERSION)
 
 # --- Version bump targets ---
 # Bumps the version in pyproject.toml in place. Prints old -> new and a
@@ -208,23 +213,72 @@ bump-major:
 
 # --- Distribution targets ---
 
-dist: dist-clean
+# Generate the man page (policy-audit.1) from the argparse parser plus the
+# hand-authored include (EXAMPLES/FILES/ENVIRONMENT/SUPPORT). The dynamic option
+# surface comes from src/.../cli/cli_setup.py:build_parser() via argparse-manpage,
+# so it never drifts from --help; only the prose in the include is maintained.
+MAN_PAGE := dist-templates/policy-audit.1
+MAN_INCLUDE := dist-templates/policy-audit.1.include
+
+man:
+	@echo "Generating man page (policy-audit.1) for v$(VERSION)..."
+	@python3 -m pip install --quiet argparse-manpage
+	@python3 -m pip install --quiet -e . >/dev/null 2>&1
+	@argparse-manpage \
+		--module falcon_policy_scoring.cli.cli_setup --function build_parser \
+		--prog policy-audit --project-name "falcon-policy-scoring" \
+		--version "$(VERSION)" \
+		--description "fetch, grade, and analyze CrowdStrike Falcon security policies" \
+		--author "CrowdStrike Community" \
+		--url "https://github.com/cs-shadowbq/falcon-policy-scoring" \
+		--manual-title "Falcon Policy Audit Manual" \
+		--include $(MAN_INCLUDE) \
+		--output $(MAN_PAGE)
+	@echo "Wrote $(MAN_PAGE)"
+
+# Convenience alias mirroring the common 'make build' convention: build the
+# distributable artifacts (wheel + sdist) and the man page.
+build: dist man
+
+dist:
 	@echo "Building wheel and sdist for v$(VERSION)..."
+	@rm -rf $(DIST_DIR)
 	python3 -m pip install --quiet build
-	python3 -m build
+	python3 -m build --outdir $(DIST_DIR)
 	@echo ""
 	@echo "Verifying wheel installs correctly..."
-	@python3 -m pip install --quiet --force-reinstall dist/*.whl
+	@python3 -m pip install --quiet --force-reinstall $(DIST_DIR)/*.whl
 	@policy-audit --version
 	@echo ""
 	@echo "Artifacts:"
-	@ls -lh dist/
+	@ls -lh $(DIST_DIR)/
 
+# Remove dist artifacts — all versions, or only the given version(s):
+#   make dist-clean            # remove everything under dist/
+#   make dist-clean 1.8.1      # remove only dist/1.8.1/
 dist-clean:
-	@rm -rf dist/ build/ src/*.egg-info
-	@echo "Cleaned dist/, build/, *.egg-info"
+	@if [ -n "$(DIST_CLEAN_VERSIONS)" ]; then \
+		for v in $(DIST_CLEAN_VERSIONS); do \
+			if [ -d "dist/$$v" ]; then \
+				echo "Removing dist/$$v/"; \
+				rm -rf "dist/$$v"; \
+			else \
+				echo "No such version dir: dist/$$v (skipping)"; \
+			fi; \
+		done; \
+	else \
+		echo "Removing ALL dist artifacts"; \
+		rm -rf dist/ build/ src/*.egg-info; \
+	fi
 
-airgap: dist
+# Support "make dist-clean <version>" — the version is a second goal to Make.
+# Capture it, and turn it into a no-op target so Make does not error out.
+ifneq ($(filter dist-clean,$(MAKECMDGOALS)),)
+DIST_CLEAN_VERSIONS := $(filter-out dist-clean,$(MAKECMDGOALS))
+$(eval $(DIST_CLEAN_VERSIONS):;@:)
+endif
+
+airgap: build
 	@echo ""
 	@echo "Building airgap bundles for Python $(AIRGAP_PYTHON)..."
 	@chmod +x scripts/build-airgap.sh
@@ -249,26 +303,27 @@ release: dist airgap
 		echo "   Title: falcon-policy-scoring v$(VERSION)"; \
 		echo "   Description: Click 'Generate release notes' for changelog"; \
 		echo ""; \
-		echo "4. Attach these files from dist/:"; \
+		echo "4. Attach these files from $(DIST_DIR)/:"; \
 		echo ""; \
-		ls dist/*.whl dist/*.tar.gz dist/SHA256SUMS 2>/dev/null | sort -u | sed 's/^/   /'; \
+		ls $(DIST_DIR)/*.whl $(DIST_DIR)/*.tar.gz $(DIST_DIR)/SHA256SUMS 2>/dev/null | sort -u | sed 's/^/   /'; \
 		echo ""; \
-		echo "5. Verify checksums match dist/SHA256SUMS after upload."; \
+		echo "5. Verify checksums match $(DIST_DIR)/SHA256SUMS after upload."; \
 		echo ""; \
 	else \
 		echo ""; \
 		echo "Release artifacts:"; \
-		ls dist/*.whl dist/*.tar.gz dist/*-airgap-*.tar.gz dist/SHA256SUMS 2>/dev/null; \
+		ls $(DIST_DIR)/*.whl $(DIST_DIR)/*.tar.gz $(DIST_DIR)/*-airgap-*.tar.gz $(DIST_DIR)/SHA256SUMS 2>/dev/null; \
 		echo ""; \
 		echo "Creating release..."; \
 		gh release create "v$(VERSION)" \
 			--title "falcon-policy-scoring v$(VERSION)" \
 			--generate-notes \
 			--notes-start-tag "$$(git tag --sort=-v:refname | sed -n '2p')" \
-			dist/*.whl \
-			dist/*.tar.gz \
-			dist/*-airgap-*.tar.gz \
-			dist/SHA256SUMS; \
+			$(DIST_DIR)/*.whl \
+			$(DIST_DIR)/*.tar.gz \
+			$(DIST_DIR)/*-airgap-*.tar.gz \
+			$(DIST_DIR)/SHA256SUMS \
+			$$(ls $(DIST_DIR)/SHA256SUMS.asc 2>/dev/null); \
 		echo ""; \
 		echo "Release published: https://github.com/cs-shadowbq/falcon-policy-scoring/releases/tag/v$(VERSION)"; \
 	fi

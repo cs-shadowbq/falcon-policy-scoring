@@ -91,11 +91,15 @@ def validate_policy_types(value: str) -> str:
     return value
 
 
-def parse_arguments() -> argparse.Namespace:
-    """Parse command line arguments.
+def build_parser() -> argparse.ArgumentParser:
+    """Build and return the CLI argument parser.
+
+    Kept separate from :func:`parse_arguments` so tooling (e.g. man-page
+    generation via argparse-manpage) can obtain the configured parser object
+    without triggering an actual parse of ``sys.argv``.
 
     Returns:
-        Parsed arguments namespace
+        The configured ArgumentParser.
     """
 
     policy_type_help_text = "Policy type(s) to process. Use 'all' or comma-separated list. Valid types are: all, content-update, device-control, firewall, it-automation, ods-scheduled-scan, prevention, sensor-update. Example: -t 'prevention,firewall'"
@@ -356,7 +360,16 @@ def parse_arguments() -> argparse.Namespace:
         help='Run fetch and grade immediately on startup instead of waiting for first scheduled cycle'
     )
 
-    return parser.parse_args()
+    return parser
+
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments.
+
+    Returns:
+        Parsed arguments namespace
+    """
+    return build_parser().parse_args()
 
 
 def load_configuration(args, ctx) -> dict:

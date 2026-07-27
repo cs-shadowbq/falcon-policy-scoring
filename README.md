@@ -22,6 +22,66 @@ Run it interactively for ad-hoc audits or deploy as a daemon for scheduled monit
 
 ---
 
+## Installation
+
+There are three supported install methods. **They are not interchangeable** — the
+way you install determines where config/grading files live and how you run the
+tool afterward. Full details in **[INSTALL.md](INSTALL.md)**.
+
+| Method | Use for | How you run it |
+|--------|---------|----------------|
+| **`git clone` + `pip install -e .`** | Development / contributing | From the repo root; `config/` and `config/grading/` already exist in the tree |
+| **`pip install` (wheel / release)** | Standard connected hosts | Package installed to site-packages; you supply your own `config/` + `config.yaml` |
+| **Airgap `./install.sh`** | Disconnected / hardened RHEL9 | Managed lifecycle — see below |
+
+### Developer / connected install
+
+```bash
+# Development (editable, from a clone)
+git clone https://github.com/cs-shadowbq/falcon-policy-scoring.git
+cd falcon-policy-scoring
+pip install -e ".[dev,test]"
+
+# Or a released wheel on a connected host
+pip install falcon_policy_scoring-<version>-py3-none-any.whl
+```
+
+With these methods the grading definitions ship in the repo tree (`config/grading/`),
+so you run `policy-audit` from the project root (or any dir containing `config/`).
+
+### Airgapped / hardened RHEL9 install (`install.sh`)
+
+The airgap bundle is a **self-contained, offline lifecycle** and is deliberately
+different from the `pip`/clone flows above:
+
+- `./install.sh` installs the wheels **offline** (no PyPI), verifying them against a
+  hash-pinned `requirements.lock`.
+- It **prepares a workspace** (or FHS paths) — creating `config/`, seeding
+  `config.yaml` at mode `0600`, and `data/`/`logs/` — because the grading files are
+  **not** inside the wheel. You then run the tool **from that workspace**, not from a
+  repo checkout.
+- It can optionally install the daemon as a **hardened systemd service**.
+- Every artifact it creates is recorded to `install.log`, and a matching
+  **`./uninstall.sh`** (with `--purge`) cleanly removes it.
+
+```bash
+tar xzf falcon-policy-scoring-*-airgap-rhel9-*.tar.gz
+cd falcon-policy-scoring-*-airgap-*/
+./install.sh                     # offline install + optional workspace/service setup
+
+# Run from the prepared workspace (NOT the repo — there is no repo on an airgap host):
+cd <workspace> && policy-audit -c config.yaml fetch
+
+./uninstall.sh                   # remove package/CLI/unit (keeps config + data)
+./uninstall.sh --purge           # also delete config, data, and output
+```
+
+See **[INSTALL.md](INSTALL.md)** for bundle contents, systemd/FHS layout, integrity
+verification (`SHA256SUMS` + optional GPG signature), and
+**[STIG_HARDENING.md](STIG_HARDENING.md)** for the sandbox and FIPS notes.
+
+---
+
 ## Quick Start
 
 ### CLI Mode (Interactive)
@@ -122,6 +182,7 @@ kubectl logs -n endpoint-readiness-audit -l app=falcon-policy-audit -f
 
 | Document | Description |
 |----------|-------------|
+| **[Installation Guide](INSTALL.md)** | Developer, connected `pip`, and airgap `install.sh` methods |
 | **[Understanding the Tool](docs/understanding-the-tool.md)** | What it does, why you need it, how grading works |
 | **[Policy Grading System](docs/policy-grading-system.md)** | Grading architecture, scoring, and customization |
 | **[Interactive Mode Guide](docs/policy-audit-interactive-mode.md)** | CLI commands, filtering, sorting, examples |

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "falcon-policy-scoring"
-version = "1.8.2"
+version = "1.8.3"
 description = "CrowdStrike Falcon policy analysis and grading tool"
 readme = "README.md"
 license = { file = "LICENSE.md" }
@@ -41,6 +41,7 @@ test = [
     "moto[dynamodb]>=4.2.0; python_version < '3.10'",
 ]
 docs = ["sphinx>=8.2.3", "sphinx-autodoc-typehints>=3.2.0"]
+man = ["argparse-manpage>=4.5"]
 
 [project.scripts]
 policy-audit = "falcon_policy_scoring.__main__:main"

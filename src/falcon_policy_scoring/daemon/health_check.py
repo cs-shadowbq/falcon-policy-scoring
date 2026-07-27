@@ -22,13 +22,18 @@ class HealthStatus(Enum):
 class HealthCheck:
     """HTTP health check endpoint for container orchestration."""
 
-    def __init__(self, port: int = 8088):
+    def __init__(self, port: int = 8088, bind_address: str = "127.0.0.1"):
         """Initialize health check server.
 
         Args:
             port: Port to listen on
+            bind_address: Address to bind to. Defaults to loopback (127.0.0.1) so
+                the health/metrics endpoint is not exposed on all interfaces. Set to
+                "0.0.0.0" to expose on all interfaces (e.g. for Kubernetes httpGet
+                probes, which connect to the pod IP rather than loopback).
         """
         self.port = port
+        self.bind_address = bind_address
         self.server: Optional[HTTPServer] = None
         self.server_thread: Optional[Thread] = None
 
@@ -49,11 +54,11 @@ class HealthCheck:
             return
 
         handler = self._create_handler()
-        self.server = HTTPServer(('0.0.0.0', self.port), handler)
+        self.server = HTTPServer((self.bind_address, self.port), handler)
         self.server_thread = Thread(target=self.server.serve_forever, daemon=True)
         self.server_thread.start()
 
-        logger.info("Health check server started on port %s", self.port)
+        logger.info("Health check server started on %s:%s", self.bind_address, self.port)
 
     def stop(self) -> None:
         """Stop the health check HTTP server."""

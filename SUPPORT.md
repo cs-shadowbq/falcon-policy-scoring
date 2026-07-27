@@ -2,9 +2,16 @@
 
 Falcon Policy Scoring is a community-driven, open source project designed to provide a simple and effective way to evaluate CrowdStrike Falcon security policies. This code base is an open source project, not a CrowdStrike product. As such, it carries no formal support, expressed or implied.
 
+## Community Supported Versions
+
+Only the most recent minor release receives fixes. For the community supported version
+matrix, supported CrowdStrike regions, supported platforms (including RHEL 9
+air-gapped deployment), and how to report a security vulnerability, see
+[SECURITY.md](SECURITY.md).
+
 ## Issue Reporting and Questions
 
-Issues may be reported [here](https://github.com/CrowdStrike/xxxx/issues/new) and are used to track bugs, documentation and link updates, enhancement requests and security concerns.
+Issues may be reported [here](https://github.com/cs-shadowbq/falcon-policy-scoring/issues/new) and are used to track bugs, documentation and link updates, enhancement requests and security concerns.
 
 ### Issue Formatting (MCVE)
 

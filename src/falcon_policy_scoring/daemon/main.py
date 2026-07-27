@@ -157,9 +157,10 @@ class DaemonRunner:
         health_enabled = health_check_config.get('enabled', True)
         if health_enabled:
             health_port = health_check_config.get('port', 8088)
-            self.health_check = HealthCheck(port=health_port)
+            health_bind = health_check_config.get('bind_address', '127.0.0.1')
+            self.health_check = HealthCheck(port=health_port, bind_address=health_bind)
             self.health_check.start()
-            logger.info("Health check started on port %s", health_port)
+            logger.info("Health check started on %s:%s", health_bind, health_port)
         else:
             self.health_check = None
             logger.info("Health check disabled by configuration")
@@ -234,9 +235,10 @@ class DaemonRunner:
             # Start new health check if enabled
             if new_health_config.get('enabled', True):
                 health_port = new_health_config.get('port', 8088)
-                self.health_check = HealthCheck(port=health_port)
+                health_bind = new_health_config.get('bind_address', '127.0.0.1')
+                self.health_check = HealthCheck(port=health_port, bind_address=health_bind)
                 self.health_check.start()
-                logger.info("Health check restarted on port %s", health_port)
+                logger.info("Health check restarted on %s:%s", health_bind, health_port)
             else:
                 logger.info("Health check disabled")
 
