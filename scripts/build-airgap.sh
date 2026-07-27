@@ -126,7 +126,9 @@ for PYVER in "${VERSIONS[@]}"; do
         fi
     done
 
-    # Download platform-specific dependencies
+    # Download platform-specific dependencies. ruamel.yaml is required by
+    # upgrade.sh (comment-preserving config merge); its optional C ext is
+    # platform-specific, so include it in the platform pass too.
     echo "Downloading dependencies for cp${PYVER} / ${PLATFORM}..."
     pip download \
         --platform "$PLATFORM" \
@@ -135,7 +137,7 @@ for PYVER in "${VERSIONS[@]}"; do
         --abi "cp${PYVER}" \
         --only-binary=:all: \
         --dest "$BUNDLE_DIR/wheels/" \
-        crowdstrike-falconpy tinydb schedule pyyaml rich python-dotenv \
+        crowdstrike-falconpy tinydb schedule pyyaml rich python-dotenv ruamel.yaml \
         2>&1 | grep -E "^(Downloading|Saved|File was already)" || true
 
     # tomli only needed for Python < 3.11
@@ -151,7 +153,8 @@ for PYVER in "${VERSIONS[@]}"; do
             2>&1 | grep -E "^(Downloading|Saved|File was already)" || true
     fi
 
-    # Also grab pure-python fallbacks (none-any wheels)
+    # Also grab pure-python fallbacks (none-any wheels). ruamel.yaml ships a
+    # pure-python wheel, so this pass covers hosts without the C extension.
     pip download \
         --platform any \
         --python-version "$PYVER" \
@@ -159,7 +162,7 @@ for PYVER in "${VERSIONS[@]}"; do
         --abi none \
         --only-binary=:all: \
         --dest "$BUNDLE_DIR/wheels/" \
-        crowdstrike-falconpy tinydb schedule pyyaml rich python-dotenv \
+        crowdstrike-falconpy tinydb schedule pyyaml rich python-dotenv ruamel.yaml \
         2>/dev/null || true
 
     # Deduplicate: if both platform-specific and pure-python exist, keep both
@@ -176,7 +179,9 @@ for PYVER in "${VERSIONS[@]}"; do
     echo "Bundling install.sh / uninstall.sh ..."
     cp "$PROJECT_DIR/dist-templates/install.sh"   "$BUNDLE_DIR/install.sh"
     cp "$PROJECT_DIR/dist-templates/uninstall.sh" "$BUNDLE_DIR/uninstall.sh"
-    chmod +x "$BUNDLE_DIR/install.sh" "$BUNDLE_DIR/uninstall.sh"
+    cp "$PROJECT_DIR/dist-templates/upgrade.sh"   "$BUNDLE_DIR/upgrade.sh"
+    cp "$PROJECT_DIR/dist-templates/merge_config.py" "$BUNDLE_DIR/merge_config.py"
+    chmod +x "$BUNDLE_DIR/install.sh" "$BUNDLE_DIR/uninstall.sh" "$BUNDLE_DIR/upgrade.sh"
 
     # Generate CycloneDX SBOM from the bundled wheels
     echo "Generating SBOM (CycloneDX)..."
@@ -195,23 +200,25 @@ chmod +x install.sh
 ./install.sh
 \`\`\`
 
-The installer offers to prepare a **workspace** directory. If you accept, it
-creates \`<workspace>/{config,data,logs}\`, copies the grading definitions into
-\`<workspace>/config/grading/\`, and seeds \`<workspace>/config.yaml\` (mode 0600)
-from the example. Run the tool from that workspace so relative paths resolve:
+Use \`--type WORKSPACE -w <dir>\` to prepare a self-contained run directory. It
+creates \`<dir>/{grading,data,logs}\`, seeds \`<dir>/config.yaml\` (mode 0600), and
+pins an absolute sqlite path. Grading resolves next to config.yaml, so you can
+run from anywhere:
 
 \`\`\`bash
-cd <workspace> && policy-audit -c config.yaml fetch
+./install.sh --type WORKSPACE -w /opt/falcon-policy-audit
+policy-audit -c /opt/falcon-policy-audit/config.yaml fetch
 \`\`\`
 
-The installer also offers to install the daemon as a **hardened systemd
-service** (see \`falcon-policy-audit.service\`) and records every artifact it
-creates to \`install.log\`.
+Install state is recorded to a **manifest** (\`falcon-policy-audit.manifest\`) and
+activity to an append-only **log** (\`falcon-policy-audit-installation.log\`), both
+under \`/var/log/falcon-policy-audit\` for a service install or
+\`~/.config/falcon-policy-audit\` otherwise (override with \`--state-dir\`).
 
 ## Run as a systemd service (hardened RHEL9)
 
 \`\`\`bash
-sudo ./install.sh          # answer 'y' to the systemd prompt, pick a layout
+sudo ./install.sh --service -y     # SYSTEM layout (FHS paths)
 sudo systemctl enable --now falcon-policy-audit
 systemd-analyze security falcon-policy-audit   # verify the sandbox
 \`\`\`
@@ -219,12 +226,32 @@ systemd-analyze security falcon-policy-audit   # verify the sandbox
 ## Uninstall
 
 \`\`\`bash
-./uninstall.sh             # remove package/CLI/unit/user; keep config + data
-./uninstall.sh --purge     # also delete config, data, and output
+./uninstall.sh             # remove package/CLI/man/unit/user; keep config + data
+./uninstall.sh --purge     # also delete config, grading, data, and output
 \`\`\`
 
-\`uninstall.sh\` reads \`install.log\` to know exactly what to remove and writes
-\`uninstall.log\` for audit.
+\`uninstall.sh\` reads the manifest to know exactly what to remove and appends its
+actions to the shared installation log. \`--purge\` keeps the manifest + log for
+audit. Pass \`--state-dir DIR\` if they aren't in the default location.
+
+## Upgrade (from a newer bundle)
+
+Extract a newer bundle and run its \`upgrade.sh\`. It reuses the layout recorded
+in the manifest, upgrades the package (hash-verified), and reconciles grading
+and config without touching your data or overwriting your config:
+
+\`\`\`bash
+./upgrade.sh --check-install   # show installed version/layout/paths, then exit
+./upgrade.sh --dry-run         # preview every change and diff
+./upgrade.sh -y                # apply: keep customized graders as .new, merge config
+\`\`\`
+
+Grading: unchanged files are updated; locally-customized ones are kept with the
+new version saved as \`<file>.new\`; brand-new graders are added (the manifest
+baseline is advanced so the next upgrade compares correctly). Config: your
+\`config.yaml\` is never overwritten — a \`config.yaml.upgraded\` candidate (your
+values + new keys, comments preserved) is written for you to review and adopt.
+Pass \`--state-dir DIR\` if the manifest isn't in the default location.
 
 ## Manual Install (no pip, no root)
 
@@ -248,8 +275,10 @@ cat sbom.cdx.json
 
 ## Contents
 
-- \`install.sh\`               — installer (writes install.log)
+- \`install.sh\`               — installer (writes the state manifest + activity log)
 - \`uninstall.sh\`             — uninstaller (\`--purge\` to also delete config/data)
+- \`upgrade.sh\`               — upgrade an existing install to this bundle's version
+- \`merge_config.py\`          — helper: comment-preserving config merge for upgrade.sh
 - \`falcon-policy-audit.service\` — hardened systemd unit template
 - \`policy-audit.1\`            — man page (installed by install.sh; \`man policy-audit\`)
 - \`requirements.lock\`        — hash-pinned dependency lockfile

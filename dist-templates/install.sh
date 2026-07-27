@@ -4,7 +4,25 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WHEEL_DIR="$SCRIPT_DIR/wheels"
-MANIFEST="$SCRIPT_DIR/install.log"
+
+# Project identifier used for system paths, the state manifest, and the log.
+# Keep in sync with the systemd unit name and /etc,/var/lib,/var/log/<APP_NAME>.
+APP_NAME="falcon-policy-audit"
+
+# Schema version of the state manifest (CATEGORY | KEY | VALUE, first line is
+# 'manifest-schema | - | X.Y.Z'). Bump the MAJOR when the manifest shape changes
+# incompatibly so future uninstall/upgrade scripts can detect and refuse to
+# misparse an old-shaped manifest. 1.8.1 used a different, unversioned format.
+MANIFEST_SCHEMA="1.0.0"
+
+# Two files, two jobs (resolved after arg parsing, under STATE_DIR):
+#   MANIFEST  - mutable STATE: what is installed now (paths, hashes, layout).
+#               Upserted freely; uninstall.sh/upgrade.sh read it back.
+#   LOGFILE   - append-only AUDIT trail of install/upgrade/uninstall activity,
+#               syslog-style and tagged with the script that wrote each line.
+STATE_DIR=""
+MANIFEST=""
+LOGFILE=""
 
 # --- Argument parsing -------------------------------------------------------
 # Behavior is driven entirely by flags. The only interactive moment is a single
@@ -15,6 +33,7 @@ TYPE_SET="no"            # was --type given explicitly?
 WORKSPACE_PATH=""        # -w/--workspace-path; defaults to ./ when TYPE=WORKSPACE
 WANT_SERVICE="no"        # --service: install the hardened systemd service
 SVC_USER="policyaudit"   # --service-user: account to run the service as
+STATE_DIR_ARG=""         # --state-dir/--log-dir: where manifest + log live
 
 usage() {
     cat << USAGE
@@ -42,7 +61,7 @@ Options:
   -w, --workspace-path PATH
                           Directory to prepare and run from (implies
                           --type WORKSPACE). Created with 'mkdir -p'; gets
-                          config/, data/, logs/ and a seeded config.yaml
+                          grading/, data/, logs/ and a seeded config.yaml
                           (mode 0600) with an absolute sqlite path. Defaults to
                           ./ when --type WORKSPACE is used without this flag.
                           Example:
@@ -50,6 +69,13 @@ Options:
 
       --service           Install the hardened systemd service (requires root).
       --service-user NAME Service account to run as (default: policyaudit).
+
+      --state-dir DIR     Where the state manifest ($APP_NAME.manifest) and the
+                          append-only installation log ($APP_NAME-installation.log)
+                          live. Default: /var/log/$APP_NAME for a --service
+                          install, otherwise \${XDG_CONFIG_HOME:-~/.config}/$APP_NAME.
+                          Give the same --state-dir to uninstall.sh / upgrade.sh.
+                          (--log-dir is accepted as an alias.)
 
   -y, --yes               Auto-confirm the service install (no prompt).
 
@@ -59,7 +85,7 @@ Steps performed:
   2. Install the man page (best effort).
   3. Prepare a WORKSPACE run directory (only when --type WORKSPACE or -w given).
   4. Install a hardened systemd service (only when --service given).
-  5. Record every created artifact to install.log for audit and cleanup.
+  5. Record install state to the manifest and actions to the installation log.
 
 Examples:
   ./install.sh                                        # just install the package
@@ -89,6 +115,9 @@ while [ $# -gt 0 ]; do
         --service-user)
             if [ $# -lt 2 ]; then echo "Error: --service-user requires a NAME" >&2; exit 2; fi
             SVC_USER="$2"; shift 2 ;;
+        --state-dir|--log-dir)
+            if [ $# -lt 2 ]; then echo "Error: $1 requires a DIR" >&2; exit 2; fi
+            STATE_DIR_ARG="$2"; shift 2 ;;
         -y|--yes) ASSUME_YES="yes"; shift ;;
         *) echo "Unknown option: $1" >&2; echo "Try './install.sh --help'." >&2; exit 2 ;;
     esac
@@ -107,34 +136,93 @@ if [ "$TYPE" = "WORKSPACE" ] && [ -z "$WORKSPACE_PATH" ]; then
     WORKSPACE_PATH="./"
 fi
 
-# Expand a leading ~ and resolve to an absolute path (once the dir exists it is
-# re-resolved; this handles the leading ~ and relative ./ up front).
+# Expand a leading ~ up front (re-resolved to absolute once the dir exists).
 if [ -n "$WORKSPACE_PATH" ]; then
     WORKSPACE_PATH="${WORKSPACE_PATH/#\~/$HOME}"
 fi
 
+# --- Resolve the state directory (manifest + log live here) -----------------
+# Never leave them in SCRIPT_DIR (the transient extracted tarball). An explicit
+# --state-dir wins; otherwise a --service install uses /var/log, and everything
+# else uses the user's XDG config dir.
+if [ -n "$STATE_DIR_ARG" ]; then
+    STATE_DIR="${STATE_DIR_ARG/#\~/$HOME}"
+elif [ "$WANT_SERVICE" = "yes" ]; then
+    STATE_DIR="/var/log/$APP_NAME"
+else
+    STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$APP_NAME"
+fi
+if ! mkdir -p "$STATE_DIR" 2>/dev/null; then
+    echo "WARNING: cannot create state dir $STATE_DIR; falling back to \$HOME/.config/$APP_NAME" >&2
+    STATE_DIR="$HOME/.config/$APP_NAME"
+    mkdir -p "$STATE_DIR"
+fi
+MANIFEST="$STATE_DIR/$APP_NAME.manifest"
+LOGFILE="$STATE_DIR/$APP_NAME-installation.log"
+
 echo "=== falcon-policy-scoring Airgap Installer ==="
+echo "State manifest: $MANIFEST"
+echo "Activity log:   $LOGFILE"
 echo ""
 
-# --- Install manifest -------------------------------------------------------
-# Every artifact this installer creates is recorded to install.log so a cleanup
-# (see uninstall.sh) or a post-install security assessment is deterministic.
-# Format:  ISO8601 | CATEGORY | PATH-or-VALUE | how-it-got-there
-manifest() {
-    # $1=category  $2=path/value  $3=note
-    printf '%s | %s | %s | %s\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "${3:-}" >> "$MANIFEST"
+# --- Append-only activity log (syslog-style, never rewritten) ---------------
+# Format:  <ISO8601> <host> <app>/<script>[<pid>]: <message>
+LOG_HOST="${HOSTNAME:-$(uname -n 2>/dev/null || echo localhost)}"
+logline() {
+    printf '%s %s %s/install.sh[%s]: %s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LOG_HOST" "$APP_NAME" "$$" "$1" >> "$LOGFILE"
 }
 
-{
-    echo "# falcon-policy-scoring install manifest"
-    echo "# Generated $(date -u +%Y-%m-%dT%H:%M:%SZ) by install.sh"
-    echo "# Columns: timestamp | category | path/value | note"
-} >> "$MANIFEST"
+# --- Mutable state manifest -------------------------------------------------
+# Upsert a state entry keyed by (CATEGORY, KEY). The manifest is a state file
+# (current install), NOT an audit log, so replacing a stale line is correct.
+# Format:  CATEGORY | KEY | VALUE
+mset() {
+    # $1=category  $2=key(path or '-')  $3=value
+    local cat="$1" key="$2" val="${3:-}"
+    if [ -f "$MANIFEST" ]; then
+        awk -F' \\| ' -v c="$cat" -v k="$key" '!($1==c && $2==k)' "$MANIFEST" \
+            > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+    fi
+    printf '%s | %s | %s\n' "$cat" "$key" "$val" >> "$MANIFEST"
+}
+
+# Ensure the manifest exists with the schema version as its FIRST line. On a
+# fresh install this creates the file; on re-install it upserts the schema entry
+# (kept for older manifests that predate it). Future 2.x scripts read this to
+# detect an incompatible manifest shape rather than misparsing it.
+if [ ! -f "$MANIFEST" ]; then
+    printf 'manifest-schema | - | %s\n' "$MANIFEST_SCHEMA" > "$MANIFEST"
+else
+    mset manifest-schema - "$MANIFEST_SCHEMA"
+fi
+
+# Portable sha256 of a file (RHEL: sha256sum, macOS build host: shasum -a 256).
+sha256_of() {
+    if command -v sha256sum &>/dev/null; then
+        sha256sum "$1" | awk '{print $1}'
+    else
+        shasum -a 256 "$1" | awk '{print $1}'
+    fi
+}
+
+# Record the sha256 baseline of each seeded grading file so upgrade.sh can tell
+# a user-customized file (on-disk hash != recorded) from an unchanged one.
+record_grading_hashes() {
+    # $1 = grading directory
+    local gdir="$1" f
+    [ -d "$gdir" ] || return 0
+    for f in "$gdir"/*.json; do
+        [ -f "$f" ] || continue
+        mset grading-hash "$f" "$(sha256_of "$f")"
+    done
+}
+
+logline "install started (type=$TYPE service=$WANT_SERVICE user=$(id -un) root=$([ "$(id -u)" -eq 0 ] && echo yes || echo no))"
+mset type - "$TYPE"
 
 IS_ROOT="no"
 [ "$(id -u)" -eq 0 ] && IS_ROOT="yes"
-manifest run root="$IS_ROOT" "invoked-by=$(id -un)"
 
 # Detect Python
 PYTHON=""
@@ -147,12 +235,13 @@ done
 
 if [ -z "$PYTHON" ]; then
     echo "ERROR: No python3 found in PATH"
+    logline "ERROR: no python3 found in PATH; aborting"
     exit 1
 fi
 
 PYVER=$($PYTHON -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 echo "Using: $PYTHON (Python $PYVER)"
-manifest python "$(command -v "$PYTHON")" "version=$PYVER"
+logline "using interpreter $(command -v "$PYTHON") (Python $PYVER)"
 echo ""
 
 INSTALL_MODE=""
@@ -165,26 +254,27 @@ pip_install() {
         echo "Installing with pip (--no-index, hash-verified)..."
         if $PYTHON -m pip install --no-index --find-links="$WHEEL_DIR" \
             --require-hashes -r "$SCRIPT_DIR/requirements.lock"; then
-            manifest pip-lockfile "$SCRIPT_DIR/requirements.lock" "hash-verified install"
+            logline "pip install (hash-verified) from requirements.lock"
             return 0
         fi
         echo "Hash-verified install failed; retrying without --require-hashes..."
+        logline "hash-verified install failed; retrying without --require-hashes"
     fi
     echo "Installing with pip (--no-index)..."
     $PYTHON -m pip install --no-index --find-links="$WHEEL_DIR" falcon-policy-scoring
 }
 
-# Record where pip actually placed the package + console script.
+# Record where pip actually placed the package + console script (into the state
+# manifest so uninstall/upgrade know exactly what to act on).
 record_pip_layout() {
     local loc
     loc=$($PYTHON -m pip show falcon-policy-scoring 2>/dev/null \
         | awk -F': ' '/^Location:/ {print $2}')
-    [ -n "$loc" ] && manifest package "$loc/falcon_policy_scoring" "pip site-packages"
+    [ -n "$loc" ] && mset package "$loc/falcon_policy_scoring" "pip"
 
     # Resolve the console-script path. `command -v` only works if the script dir
-    # is on PATH — which is frequently NOT the case for /usr/local/bin under a
-    # bare root shell. Fall back to the interpreter's script directory so we
-    # always capture the real path for the manifest (and later CLI_PATH use).
+    # is on PATH — frequently NOT the case for /usr/local/bin under a bare root
+    # shell. Fall back to the interpreter's script directory.
     CLI_PATH=$(command -v policy-audit 2>/dev/null || true)
     if [ -z "$CLI_PATH" ]; then
         local bindir
@@ -196,10 +286,10 @@ record_pip_layout() {
         fi
     fi
     if [ -n "$CLI_PATH" ]; then
-        manifest cli "$CLI_PATH" "pip console script"
+        mset cli "$CLI_PATH" "pip"
     fi
-    # Explicit success: this is the last function statement, and under `set -e`
-    # a falsy final command would abort the whole installer.
+    # Explicit success: last function statement, so a falsy result would abort
+    # the installer under `set -e`.
     return 0
 }
 
@@ -232,7 +322,7 @@ else
         echo "  $(basename "$whl")"
         unzip -q -o "$whl" -d "$INSTALL_DIR"
     done
-    manifest package "$INSTALL_DIR" "manual wheel extraction"
+    mset package "$INSTALL_DIR" "manual"
 
     # Create CLI wrapper
     BIN_DIR="$HOME/.local/bin"
@@ -244,14 +334,19 @@ exec $PYTHON -m falcon_policy_scoring "\$@"
 EOF
     chmod +x "$BIN_DIR/policy-audit"
     CLI_PATH="$BIN_DIR/policy-audit"
-    manifest cli "$CLI_PATH" "manual wrapper"
+    mset cli "$CLI_PATH" "manual"
 
     echo ""
     echo "Done!"
     echo "Ensure ~/.local/bin is in PATH:  export PATH=\$HOME/.local/bin:\$PATH"
     echo "Run: policy-audit --help"
 fi
-manifest mode "$INSTALL_MODE" "install method"
+mset mode - "$INSTALL_MODE"
+# Record the installed version in the manifest so upgrade.sh/--check-install can
+# report it even if pip is later queried under a different interpreter.
+INSTALLED_VER="$($PYTHON -m pip show falcon-policy-scoring 2>/dev/null | awk -F': ' '/^Version:/ {print $2}')"
+[ -n "$INSTALLED_VER" ] && mset version - "$INSTALLED_VER"
+logline "package installed (mode=$INSTALL_MODE version=${INSTALLED_VER:-unknown} cli=${CLI_PATH:-unknown})"
 
 # --- Install the man page (best effort) ------------------------------------
 # Install policy-audit.1 into the first writable man1 directory so
@@ -265,7 +360,8 @@ if [ -f "$SCRIPT_DIR/policy-audit.1" ]; then
     if mkdir -p "$MAN_DIR" 2>/dev/null && [ -w "$MAN_DIR" ]; then
         cp "$SCRIPT_DIR/policy-audit.1" "$MAN_DIR/policy-audit.1"
         chmod 644 "$MAN_DIR/policy-audit.1" 2>/dev/null || true
-        manifest man "$MAN_DIR/policy-audit.1" "man page installed"
+        mset man "$MAN_DIR/policy-audit.1" -
+        logline "man page installed at $MAN_DIR/policy-audit.1"
         echo "Installed man page: $MAN_DIR/policy-audit.1  (try: man policy-audit)"
         # Non-root man dirs are often not on MANPATH by default.
         if [ "$IS_ROOT" != "yes" ]; then
@@ -289,48 +385,48 @@ set_sqlite_path() {
     [ -f "$cfg" ] || return 0
     if grep -qE '^[[:space:]]*path:[[:space:]]*\./data/db\.sqlite' "$cfg"; then
         sed -i -E "s#^([[:space:]]*)path:[[:space:]]*\./data/db\.sqlite.*#\1path: ${data_dir}/db.sqlite#" "$cfg"
-        manifest sqlite-path "${data_dir}/db.sqlite" "absolute path set in $cfg"
+        logline "pinned sqlite path to ${data_dir}/db.sqlite in $cfg"
     fi
 }
 
 # --- Workspace preparation (TYPE=WORKSPACE) --------------------------------
-# Prepare a single self-contained directory to run from. The grading
-# definitions and example config live alongside this installer, NOT inside the
-# wheel. Grading is resolved at runtime as '<dir-of-config.yaml>/grading', so we
-# place config.yaml and grading/ side by side in the workspace root.
+# Prepare a single self-contained directory to run from. Grading is resolved at
+# runtime as '<dir-of-config.yaml>/grading', so config.yaml and grading/ sit
+# side by side in the workspace root.
 WORKSPACE=""
 echo ""
 if [ "$TYPE" = "WORKSPACE" ]; then
     WORKSPACE="$WORKSPACE_PATH"
     echo "Preparing workspace at: $WORKSPACE"
     mkdir -p "$WORKSPACE" "$WORKSPACE/data" "$WORKSPACE/logs"
-    # Resolve to an absolute path now that it exists (so ./ and relative paths
-    # become concrete in the manifest and in config.yaml's sqlite path).
     WORKSPACE="$(cd "$WORKSPACE" && pwd)"
-    manifest workspace "$WORKSPACE" "workspace root"
-    manifest data "$WORKSPACE/data" "workspace data dir"
-    manifest logs "$WORKSPACE/logs" "workspace logs dir"
+    mset workspace "$WORKSPACE" -
+    mset data "$WORKSPACE/data" -
+    mset logs "$WORKSPACE/logs" -
+    logline "workspace prepared at $WORKSPACE"
 
-    # Copy grading definitions to <workspace>/grading (sibling of config.yaml),
-    # matching how the app resolves them at runtime.
+    # Grading definitions -> <workspace>/grading (sibling of config.yaml).
     if [ -d "$SCRIPT_DIR/config/grading" ]; then
         cp -R "$SCRIPT_DIR/config/grading" "$WORKSPACE/grading"
-        manifest config-dir "$WORKSPACE/grading" "grading definitions"
+        mset grading-dir "$WORKSPACE/grading" -
+        record_grading_hashes "$WORKSPACE/grading"
+        logline "grading definitions installed at $WORKSPACE/grading"
     else
         echo "WARNING: bundled config/grading not found next to installer; grading unavailable."
     fi
 
-    # Seed a config.yaml from the example if one isn't already present.
-    # It holds API credentials, so lock it to owner-only (0600).
+    # Seed config.yaml from the example if absent; it holds API credentials, so
+    # lock it to owner-only (0600).
     if [ -f "$SCRIPT_DIR/config/example.config.yaml" ]; then
         if [ -f "$WORKSPACE/config.yaml" ]; then
             echo "Existing $WORKSPACE/config.yaml left untouched."
         else
             cp "$SCRIPT_DIR/config/example.config.yaml" "$WORKSPACE/config.yaml"
             chmod 600 "$WORKSPACE/config.yaml"
-            # Pin the sqlite DB to an absolute path in the workspace data dir.
             set_sqlite_path "$WORKSPACE/config.yaml" "$WORKSPACE/data"
-            manifest config "$WORKSPACE/config.yaml" "seeded from example, chmod 600"
+            mset config "$WORKSPACE/config.yaml" -
+            mset config-hash "$WORKSPACE/config.yaml" "$(sha256_of "$WORKSPACE/config.yaml")"
+            logline "seeded config.yaml (0600) at $WORKSPACE/config.yaml"
         fi
     fi
 
@@ -394,87 +490,94 @@ if [ "$INSTALL_SVC" = "y" ]; then
 
     SVC_GROUP="$SVC_USER"
 
-        # Create the service account if it doesn't exist.
-        if ! id "$SVC_USER" &>/dev/null; then
-            useradd -r -s /sbin/nologin -c "Falcon Policy Audit" "$SVC_USER"
-            manifest user "$SVC_USER" "created system account"
-            echo "Created system user: $SVC_USER"
-        else
-            manifest user "$SVC_USER" "pre-existing (not created)"
+    # Create the service account if it doesn't exist.
+    if ! id "$SVC_USER" &>/dev/null; then
+        useradd -r -s /sbin/nologin -c "Falcon Policy Audit" "$SVC_USER"
+        mset user "$SVC_USER" "created"
+        logline "created system user $SVC_USER"
+        echo "Created system user: $SVC_USER"
+    else
+        mset user "$SVC_USER" "preexisting"
+        logline "service user $SVC_USER already existed (not created)"
+    fi
+
+    # Create dirs and seed config.
+    mkdir -p "$(dirname "$SVC_CONFIG")" "$SVC_DATA" "$SVC_OUTPUT" "$SVC_LOGS"
+    mset data "$SVC_DATA" -
+    mset output "$SVC_OUTPUT" -
+    mset logs "$SVC_LOGS" -
+
+    if [ ! -f "$SVC_CONFIG" ]; then
+        if [ -f "$SCRIPT_DIR/config/example.config.yaml" ]; then
+            cp "$SCRIPT_DIR/config/example.config.yaml" "$SVC_CONFIG"
         fi
+        chmod 600 "$SVC_CONFIG" 2>/dev/null || true
+        set_sqlite_path "$SVC_CONFIG" "$SVC_DATA"
+        mset config "$SVC_CONFIG" -
+        mset config-hash "$SVC_CONFIG" "$(sha256_of "$SVC_CONFIG")"
+        logline "seeded config.yaml (0600) at $SVC_CONFIG"
+    fi
+    # Grading definitions next to the config for SYSTEM layout (WORKSPACE placed
+    # them at <workspace>/grading above). Resolves to '<dir-of-config>/grading'.
+    if [ "$TYPE" = "SYSTEM" ] && [ -d "$SCRIPT_DIR/config/grading" ]; then
+        cp -R "$SCRIPT_DIR/config/grading" "$(dirname "$SVC_CONFIG")/grading"
+        mset grading-dir "$(dirname "$SVC_CONFIG")/grading" -
+        record_grading_hashes "$(dirname "$SVC_CONFIG")/grading"
+        logline "grading definitions installed at $(dirname "$SVC_CONFIG")/grading"
+    fi
 
-        # Create dirs and seed config.
-        mkdir -p "$(dirname "$SVC_CONFIG")" "$SVC_DATA" "$SVC_OUTPUT" "$SVC_LOGS"
-        manifest data "$SVC_DATA" "service data dir"
-        manifest output "$SVC_OUTPUT" "service output dir"
-        manifest logs "$SVC_LOGS" "service logs dir"
+    chown -R "$SVC_USER:$SVC_GROUP" "$SVC_DATA" "$SVC_OUTPUT" "$SVC_LOGS"
+    chown "$SVC_USER:$SVC_GROUP" "$SVC_CONFIG" 2>/dev/null || true
 
-        if [ ! -f "$SVC_CONFIG" ]; then
-            if [ -f "$SCRIPT_DIR/config/example.config.yaml" ]; then
-                cp "$SCRIPT_DIR/config/example.config.yaml" "$SVC_CONFIG"
-            fi
-            chmod 600 "$SVC_CONFIG" 2>/dev/null || true
-            # Pin the sqlite DB to an absolute path in the writable data dir so
-            # the daemon can open it under the ProtectSystem/ReadWritePaths sandbox.
-            set_sqlite_path "$SVC_CONFIG" "$SVC_DATA"
-            manifest config "$SVC_CONFIG" "seeded from example, chmod 600"
-        fi
-        # Grading definitions next to the config for SYSTEM layout (WORKSPACE
-        # already placed them at <workspace>/grading via the workspace prep above).
-        # Either way this resolves to '<dir-of-config.yaml>/grading', matching the app.
-        if [ "$TYPE" = "SYSTEM" ] && [ -d "$SCRIPT_DIR/config/grading" ]; then
-            cp -R "$SCRIPT_DIR/config/grading" "$(dirname "$SVC_CONFIG")/grading"
-            manifest config-dir "$(dirname "$SVC_CONFIG")/grading" "grading definitions"
-        fi
+    # Render the unit template.
+    UNIT_DEST="/etc/systemd/system/falcon-policy-audit.service"
+    sed -e "s|@EXEC@|$CLI_PATH|g" \
+        -e "s|@CONFIG@|$SVC_CONFIG|g" \
+        -e "s|@OUTPUT@|$SVC_OUTPUT|g" \
+        -e "s|@DATA@|$SVC_DATA|g" \
+        -e "s|@LOGS@|$SVC_LOGS|g" \
+        -e "s|@USER@|$SVC_USER|g" \
+        -e "s|@GROUP@|$SVC_GROUP|g" \
+        "$UNIT_TEMPLATE" > "$UNIT_DEST"
+    chmod 644 "$UNIT_DEST"
+    mset systemd-unit "$UNIT_DEST" -
+    logline "systemd unit rendered at $UNIT_DEST (service-user=$SVC_USER)"
 
-        chown -R "$SVC_USER:$SVC_GROUP" "$SVC_DATA" "$SVC_OUTPUT" "$SVC_LOGS"
-        chown "$SVC_USER:$SVC_GROUP" "$SVC_CONFIG" 2>/dev/null || true
-
-        # Render the unit template.
-        UNIT_DEST="/etc/systemd/system/falcon-policy-audit.service"
-        sed -e "s|@EXEC@|$CLI_PATH|g" \
-            -e "s|@CONFIG@|$SVC_CONFIG|g" \
-            -e "s|@OUTPUT@|$SVC_OUTPUT|g" \
-            -e "s|@DATA@|$SVC_DATA|g" \
-            -e "s|@LOGS@|$SVC_LOGS|g" \
-            -e "s|@USER@|$SVC_USER|g" \
-            -e "s|@GROUP@|$SVC_GROUP|g" \
-            "$UNIT_TEMPLATE" > "$UNIT_DEST"
-        chmod 644 "$UNIT_DEST"
-        manifest systemd-unit "$UNIT_DEST" "rendered from template"
-
-        systemctl daemon-reload
-        echo ""
-        echo "Service installed: $UNIT_DEST"
-        echo ""
-        echo "=== IMPORTANT: validate by hand BEFORE enabling the daemon ==="
-        echo ""
-        echo "1. Edit credentials and settings in:"
-        echo "     $SVC_CONFIG"
-        echo ""
-        echo "2. Do a one-shot fetch AS THE SERVICE USER ($SVC_USER) so it exercises"
-        echo "   the same config and proves API keys, DNS, and read/write access work."
-        echo "   Running it as the service user (not root) is critical: a root-run"
-        echo "   fetch would create root-owned files in $SVC_DATA that the daemon"
-        echo "   (running as $SVC_USER) could not later update."
-        echo ""
-        echo "     sudo -u $SVC_USER $CLI_PATH -c $SVC_CONFIG fetch"
-        echo ""
-        echo "   Confirm it completes without auth/DNS/permission errors and that"
-        echo "   the sqlite DB and output were written under $SVC_DATA."
-        echo ""
-        echo "3. If step 2 succeeded, re-assert ownership (in case anything was"
-        echo "   created by another user) and enable the service:"
-        echo ""
-        echo "     sudo chown -R $SVC_USER:$SVC_GROUP $SVC_DATA $SVC_OUTPUT $SVC_LOGS"
-        echo "     sudo systemctl enable --now falcon-policy-audit"
-        echo ""
-        echo "4. Verify health and sandboxing:"
-        echo "     systemctl status falcon-policy-audit"
-        echo "     journalctl -u falcon-policy-audit -f"
-        echo "     systemd-analyze security falcon-policy-audit"
+    systemctl daemon-reload
+    echo ""
+    echo "Service installed: $UNIT_DEST"
+    echo ""
+    echo "=== IMPORTANT: validate by hand BEFORE enabling the daemon ==="
+    echo ""
+    echo "1. Edit credentials and settings in:"
+    echo "     $SVC_CONFIG"
+    echo ""
+    echo "2. Do a one-shot fetch AS THE SERVICE USER ($SVC_USER) so it exercises"
+    echo "   the same config and proves API keys, DNS, and read/write access work."
+    echo "   Running it as the service user (not root) is critical: a root-run"
+    echo "   fetch would create root-owned files in $SVC_DATA that the daemon"
+    echo "   (running as $SVC_USER) could not later update."
+    echo ""
+    echo "     sudo -u $SVC_USER $CLI_PATH -c $SVC_CONFIG fetch"
+    echo ""
+    echo "   Confirm it completes without auth/DNS/permission errors and that"
+    echo "   the sqlite DB and output were written under $SVC_DATA."
+    echo ""
+    echo "3. If step 2 succeeded, re-assert ownership (in case anything was"
+    echo "   created by another user) and enable the service:"
+    echo ""
+    echo "     sudo chown -R $SVC_USER:$SVC_GROUP $SVC_DATA $SVC_OUTPUT $SVC_LOGS"
+    echo "     sudo systemctl enable --now falcon-policy-audit"
+    echo ""
+    echo "4. Verify health and sandboxing:"
+    echo "     systemctl status falcon-policy-audit"
+    echo "     journalctl -u falcon-policy-audit -f"
+    echo "     systemd-analyze security falcon-policy-audit"
 fi
 
+logline "install complete (type=$TYPE service=$INSTALL_SVC)"
 echo ""
-echo "Install manifest written to: $MANIFEST"
-echo "To remove later: ./uninstall.sh  (add --purge to also delete config/data)"
+echo "State manifest:  $MANIFEST"
+echo "Activity log:    $LOGFILE"
+echo "To remove later:  ./uninstall.sh --state-dir $STATE_DIR   (add --purge to also delete config/data)"
+echo "To upgrade later: ./upgrade.sh   --state-dir $STATE_DIR   (from a newer bundle)"

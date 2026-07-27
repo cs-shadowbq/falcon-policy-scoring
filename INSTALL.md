@@ -39,8 +39,8 @@ For disconnected/air-gapped environments without internet access on the target h
 > - **`./install.sh`** (airgap): installs wheels **offline** (hash-verified against
 >   `requirements.lock`), **prepares a SYSTEM or WORKSPACE layout** with the grading
 >   files (they are **not** in the wheel), can install a **hardened systemd
->   service**, writes an **`install.log`** manifest, and ships a matching
->   **`uninstall.sh`**.
+>   service**, records install state to a **manifest** + append-only **log**, and
+>   ships matching **`uninstall.sh`** / **`upgrade.sh`**.
 >
 > In every case grading definitions are resolved as `<dir-of-config.yaml>/grading/`,
 > so the tool works from any working directory once `-c` points at the config.
@@ -76,7 +76,8 @@ cd falcon-policy-scoring-*-airgap-*/
    you can run the tool from any directory:
    `policy-audit -c <workspace>/config.yaml fetch`.
 3. Optionally install a **hardened systemd service** (see below).
-4. Record every artifact it created to `install.log` for audit and cleanup.
+4. Record install state to a manifest and activity to an append-only log
+   (under `/var/log/falcon-policy-audit` or `~/.config/falcon-policy-audit`).
 
 To remove everything later, use the bundled `./uninstall.sh` (see
 [Uninstall](#uninstalling-the-airgap-bundle)).
@@ -124,8 +125,10 @@ Each airgap bundle contains:
 
 - `wheels/` — all runtime dependency wheels pre-compiled for the target
 - `requirements.lock` — hash-pinned lockfile; `install.sh` verifies wheels against it
-- `install.sh` — auto-installer (uses pip if available, falls back to unzip); writes `install.log`
-- `uninstall.sh` — uninstaller (`--purge` also removes config/data); writes `uninstall.log`
+- `install.sh` — auto-installer (uses pip if available, falls back to unzip); writes the state manifest + activity log
+- `uninstall.sh` — uninstaller (`--purge` also removes config/data)
+- `upgrade.sh` — upgrade an existing install to this bundle's version
+- `merge_config.py` — helper for `upgrade.sh` (comment-preserving config merge)
 - `falcon-policy-audit.service` — hardened systemd unit template
 - `sbom.cdx.json` — CycloneDX 1.5 SBOM listing all bundled components and versions
 - `README.md` — quick-start instructions
@@ -168,10 +171,10 @@ flock -n /run/lock/policy-audit.lock policy-audit -c /path/config.yaml fetch
 ### Running as a hardened systemd service
 
 `install.sh` (run as root on the target) offers to install the daemon as a
-sandboxed systemd service, choosing either FHS paths (`/etc/`, `/var/lib/`,
-`/var/log/`) or a single workspace directory. It seeds `config.yaml` at mode
+sandboxed systemd service, choosing either the SYSTEM layout (`/etc/`,
+`/var/lib/`, `/var/log/`) or a WORKSPACE directory. It seeds `config.yaml` at mode
 `0600`, pins an absolute `sqlite.path`, creates a `policyaudit` service account,
-renders the unit, and records everything to `install.log`.
+renders the unit, and records install state to the manifest + activity log.
 
 > [!WARNING]
 > The hardened unit sets `ProtectHome=yes`, which makes `/home` and `/root`
@@ -213,18 +216,59 @@ FIPS notes in [STIG_HARDENING.md](STIG_HARDENING.md).
 
 ### Uninstalling the Airgap Bundle
 
-Every airgap bundle ships an `uninstall.sh` that reads the `install.log` manifest
-to know exactly what to remove (package, CLI wrapper, systemd unit, and the
-`policyaudit` service account if the installer created it):
+Every airgap bundle ships an `uninstall.sh` that reads the state manifest
+(`falcon-policy-audit.manifest`) to know exactly what to remove (package, CLI
+wrapper, man page, systemd unit, and the `policyaudit` service account if this
+deployment created it):
 
 ```bash
-./uninstall.sh            # remove package/CLI/unit/user; KEEP config, data, logs
-./uninstall.sh --purge    # also delete config, data, and output
+./uninstall.sh            # remove package/CLI/man/unit/user; KEEP config, data, logs
+./uninstall.sh --purge    # also delete config, grading, data, and output
 ./uninstall.sh --yes      # skip the confirmation prompt (for automation)
+./uninstall.sh --state-dir /var/log/falcon-policy-audit   # if the manifest isn't auto-found
 ```
 
-`--purge` leaves only `uninstall.sh` and its own `uninstall.log` behind. The
-uninstaller is idempotent — re-running it will not error on already-removed items.
+`--purge` removes config/grading/data/output but keeps the manifest and the
+append-only activity log (`falcon-policy-audit-installation.log`) for audit. The
+uninstaller is idempotent — re-running it will not error on already-removed
+items. It finds the manifest automatically (searching
+`/var/log/falcon-policy-audit`, then `~/.config/falcon-policy-audit`); pass
+`--state-dir` if you installed with a custom location.
+
+### Upgrading the Airgap Bundle
+
+To move an existing install to a newer version, extract the newer bundle and run
+its `upgrade.sh`. It reads the state manifest, upgrades the package (offline,
+hash-verified), and reconciles grading and config **without touching your data,
+logs, or database**. Before applying, it prints the current install state and the
+version transition (e.g. `1.9.0 -> 2.3.0`) and asks to confirm:
+
+```bash
+./upgrade.sh --check-install   # just show what's installed + target version, then exit
+./upgrade.sh --dry-run         # preview every action and diff; change nothing
+./upgrade.sh                   # interactive: shows state, prompts to confirm
+./upgrade.sh -y                # confirm non-interactively (required without a TTY)
+./upgrade.sh --state-dir /var/log/falcon-policy-audit   # if manifest isn't auto-found
+```
+
+`--check-install` is safe to run from any bundle version against any installed
+version (e.g. a 2.3 bundle inspecting a 1.9 install); it reports the installed
+version (authoritatively via pip), layout, paths, service status, and how many
+grading files are locally customized — then exits without changing anything. A
+real upgrade requires confirmation: interactively it prompts, non-interactively
+it needs `-y` (else it aborts).
+
+- **Grading**: files you never edited are updated to the new version; files you
+  customized are kept and the new version is written beside them as `<file>.new`;
+  brand-new grader types are installed. `--force-grading` takes the new versions
+  (backing yours up as `<file>.bak`).
+- **config.yaml**: never overwritten. A `config.yaml.upgraded` candidate is
+  produced (your values + any new keys, with comments preserved via `ruamel.yaml`)
+  and the new keys are reported. Review with `diff`, then adopt by moving it into
+  place — or use `--force-config` to adopt automatically (backing yours up).
+
+For **git-clone / development** installs there is no `upgrade.sh` — just
+`git pull && pip install -e .`.
 
 ### Verifying integrity (airgap)
 

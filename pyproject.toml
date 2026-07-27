@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "falcon-policy-scoring"
-version = "1.8.4"
+version = "1.8.5"
 description = "CrowdStrike Falcon policy analysis and grading tool"
 readme = "README.md"
 license = { file = "LICENSE.md" }
@@ -42,6 +42,9 @@ test = [
 ]
 docs = ["sphinx>=8.2.3", "sphinx-autodoc-typehints>=3.2.0"]
 man = ["argparse-manpage>=4.5"]
+# Bundled into airgap tarballs; ruamel.yaml powers upgrade.sh's comment-preserving
+# config merge (merge_config.py) and is a hard requirement of the upgrade flow.
+airgap = ["ruamel.yaml>=0.18"]
 
 [project.scripts]
 policy-audit = "falcon_policy_scoring.__main__:main"
