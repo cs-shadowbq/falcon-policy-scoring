@@ -4,6 +4,7 @@ Module for grading CrowdStrike Falcon policies against minimum standards.
 
 import logging
 import json
+import os
 
 from falcon_policy_scoring.grading.graders import (
     grade_all_prevention_policies,
@@ -19,6 +20,30 @@ from falcon_policy_scoring.grading.graders import (
 from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 
 
+# Directory holding the grading definition JSON files. It is resolved once at
+# startup from the location of the active config file (see set_grading_dir),
+# so grading works regardless of the process working directory — a systemd
+# service (CWD=/), an air-gapped workspace, or a git checkout all behave the
+# same. When unset, it falls back to the repo-relative 'config/grading' so
+# running from a git checkout (and the test suite) works with no setup.
+_GRADING_DIR = None
+
+
+def set_grading_dir(path):
+    """Set the directory containing grading definition JSON files.
+
+    Call once at startup with '<dir-of-config.yaml>/grading'. Passing a falsy
+    value resets to the default ('config/grading' relative to CWD).
+    """
+    global _GRADING_DIR  # pylint: disable=global-statement
+    _GRADING_DIR = os.path.abspath(path) if path else None
+
+
+def get_grading_dir():
+    """Return the effective grading directory (default: 'config/grading')."""
+    return _GRADING_DIR if _GRADING_DIR else 'config/grading'
+
+
 def load_grading_config(policy_type='prevention_policies', config_file=None):
     """
     Load grading configuration from JSON file.
@@ -26,13 +51,16 @@ def load_grading_config(policy_type='prevention_policies', config_file=None):
     Args:
         policy_type: Type of policy (e.g., 'prevention_policies', 'sensor_update_policies')
         config_file: Optional explicit path to config file. If not provided,
-                     uses 'config/grading/{policy_type}_grading.json'
+                     uses '<grading_dir>/{policy_type}_grading.json', where
+                     grading_dir defaults to 'config/grading' but is normally
+                     set at startup to the directory next to config.yaml
+                     (see set_grading_dir).
 
     Returns:
         dict: Grading configuration
     """
     if config_file is None:
-        config_file = f'config/grading/{policy_type}_grading.json'
+        config_file = os.path.join(get_grading_dir(), f'{policy_type}_grading.json')
 
     try:
         with open(config_file, 'r', encoding='utf-8') as f:

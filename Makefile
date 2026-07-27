@@ -25,7 +25,7 @@ help:
 	@echo "Distribution Targets:"
 	@echo "  build                    Build wheel + sdist + man page (alias: dist + man)"
 	@echo "  dist                     Build wheel and sdist into dist/<version>/"
-	@echo "  man                      Generate man page (dist-templates/policy-audit.1)"
+	@echo "  man                      Generate man page (build/policy-audit.1)"
 	@echo "  dist-clean               Clean all dist artifacts (or 'make dist-clean X.Y.Z' for one version)"
 	@echo "  airgap                   Build airgap bundles (RHEL 9 x86_64)"
 	@echo "  release                  Create GitHub release with all artifacts (via gh CLI)"
@@ -217,11 +217,12 @@ bump-major:
 # hand-authored include (EXAMPLES/FILES/ENVIRONMENT/SUPPORT). The dynamic option
 # surface comes from src/.../cli/cli_setup.py:build_parser() via argparse-manpage,
 # so it never drifts from --help; only the prose in the include is maintained.
-MAN_PAGE := dist-templates/policy-audit.1
+MAN_PAGE := build/policy-audit.1
 MAN_INCLUDE := dist-templates/policy-audit.1.include
 
 man:
 	@echo "Generating man page (policy-audit.1) for v$(VERSION)..."
+	@mkdir -p build
 	@python3 -m pip install --quiet argparse-manpage
 	@python3 -m pip install --quiet -e . >/dev/null 2>&1
 	@argparse-manpage \

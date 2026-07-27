@@ -69,8 +69,8 @@ tar xzf falcon-policy-scoring-*-airgap-rhel9-*.tar.gz
 cd falcon-policy-scoring-*-airgap-*/
 ./install.sh                     # offline install + optional workspace/service setup
 
-# Run from the prepared workspace (NOT the repo — there is no repo on an airgap host):
-cd <workspace> && policy-audit -c config.yaml fetch
+# Run from anywhere — grading resolves next to the config file:
+policy-audit -c <workspace>/config.yaml fetch
 
 ./uninstall.sh                   # remove package/CLI/unit (keeps config + data)
 ./uninstall.sh --purge           # also delete config, data, and output

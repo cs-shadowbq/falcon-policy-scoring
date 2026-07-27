@@ -19,6 +19,21 @@ import pytest
 import yaml
 
 
+@pytest.fixture(autouse=True)
+def _reset_grading_dir():
+    """Isolate the module-global grading directory between tests.
+
+    read_config_from_yaml() pins the grading dir to '<dir-of-config>/grading'.
+    Tests that load a config from a temp dir would otherwise leave that pointing
+    at a now-deleted path, breaking later tests that rely on the repo-relative
+    default ('config/grading'). Reset before and after each test.
+    """
+    from falcon_policy_scoring.grading.engine import set_grading_dir
+    set_grading_dir(None)
+    yield
+    set_grading_dir(None)
+
+
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
     """Create a temporary directory that is cleaned up after the test."""

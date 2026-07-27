@@ -7,6 +7,8 @@ against minimum security standards.
 
 from falcon_policy_scoring.grading.engine import (
     load_grading_config,
+    set_grading_dir,
+    get_grading_dir,
     grade_all_prevention_policies,
     grade_all_sensor_update_policies,
     grade_all_content_update_policies,
@@ -17,6 +19,8 @@ from falcon_policy_scoring.grading.engine import (
 
 __all__ = [
     'load_grading_config',
+    'set_grading_dir',
+    'get_grading_dir',
     'grade_all_prevention_policies',
     'grade_all_sensor_update_policies',
     'grade_all_content_update_policies',

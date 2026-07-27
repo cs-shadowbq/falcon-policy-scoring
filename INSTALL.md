@@ -33,15 +33,17 @@ For disconnected/air-gapped environments without internet access on the target h
 > editable install. It is a self-contained **offline lifecycle**:
 >
 > - **`git clone` + `pip install -e .`** (development): the grading files live in
->   the repo tree (`config/grading/`), and you run `policy-audit` from the checkout.
+>   the repo tree (`config/grading/`), used via the default `config/config.yaml`.
 > - **`pip install <wheel>`** (connected host): the package goes to site-packages;
->   you provide your own `config/` and `config.yaml` and run from a dir containing it.
+>   you provide your own `config.yaml` with a `grading/` directory beside it.
 > - **`./install.sh`** (airgap): installs wheels **offline** (hash-verified against
->   `requirements.lock`), **prepares a workspace or FHS layout** with the grading
+>   `requirements.lock`), **prepares a SYSTEM or WORKSPACE layout** with the grading
 >   files (they are **not** in the wheel), can install a **hardened systemd
 >   service**, writes an **`install.log`** manifest, and ships a matching
->   **`uninstall.sh`**. There is no repo checkout on the target — you run the tool
->   from the prepared workspace.
+>   **`uninstall.sh`**.
+>
+> In every case grading definitions are resolved as `<dir-of-config.yaml>/grading/`,
+> so the tool works from any working directory once `-c` points at the config.
 
 ### Download the Bundle
 
@@ -69,9 +71,10 @@ cd falcon-policy-scoring-*-airgap-*/
 1. Install the wheels **offline** — using pip with `--require-hashes` against
    `requirements.lock` when pip is available, or falling back to manual wheel
    extraction if not.
-2. Optionally **prepare a workspace** (`config/`, `config.yaml` at mode `0600`,
-   `data/`, `logs/`). Run the tool from that workspace:
-   `cd <workspace> && policy-audit -c config.yaml fetch`.
+2. Optionally **prepare a workspace** (`grading/`, `config.yaml` at mode `0600`,
+   `data/`, `logs/`). Grading definitions are resolved next to `config.yaml`, so
+   you can run the tool from any directory:
+   `policy-audit -c <workspace>/config.yaml fetch`.
 3. Optionally install a **hardened systemd service** (see below).
 4. Record every artifact it created to `install.log` for audit and cleanup.
 

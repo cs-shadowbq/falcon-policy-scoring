@@ -1,4 +1,5 @@
 """Configuration file utilities for loading and parsing YAML config files."""
+import os
 import yaml
 from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 
@@ -74,12 +75,24 @@ def _load_config_defaults(config):
 def read_config_from_yaml(config_file="config/config.yaml"):
     """Read and parse YAML configuration file with defaults.
 
+    Also pins the grading-definitions directory to '<dir-of-config_file>/grading'
+    so grading resolves independently of the process working directory (a systemd
+    service runs with CWD=/, an air-gapped workspace runs from its own dir, and a
+    git checkout runs from the repo root — all resolve correctly). This is the one
+    chokepoint every run mode passes through, so the grading dir stays in lockstep
+    with the active config with no per-entry-point wiring.
+
     Args:
         config_file: Path to YAML config file (default: config/config.yaml)
 
     Returns:
         dict: Configuration dictionary with all defaults applied
     """
+    # Deferred import avoids a utils->grading import cycle at module load.
+    from falcon_policy_scoring.grading.engine import set_grading_dir
+    config_dir = os.path.dirname(os.path.abspath(config_file))
+    set_grading_dir(os.path.join(config_dir, 'grading'))
+
     try:
         with open(config_file, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file) or {}
