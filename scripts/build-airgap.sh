@@ -118,6 +118,13 @@ for PYVER in "${VERSIONS[@]}"; do
         cp "$PROJECT_DIR/build/policy-audit.1" "$BUNDLE_DIR/policy-audit.1"
     fi
 
+    # Bundle the standalone readiness_map helper. It is a self-contained stdlib
+    # script (NOT a pip console script), so install.sh must place it next to
+    # policy-audit itself; pip never installs it.
+    if [ -f "$PROJECT_DIR/bin/readiness_map" ]; then
+        cp "$PROJECT_DIR/bin/readiness_map" "$BUNDLE_DIR/readiness_map"
+    fi
+
     # Bundle the install / security / support docs next to install.sh so an
     # airgapped operator has them offline. Only copy if not already present.
     for doc in INSTALL.md SECURITY.md SUPPORT.md; do
@@ -281,6 +288,7 @@ cat sbom.cdx.json
 - \`merge_config.py\`          — helper: comment-preserving config merge for upgrade.sh
 - \`falcon-policy-audit.service\` — hardened systemd unit template
 - \`policy-audit.1\`            — man page (installed by install.sh; \`man policy-audit\`)
+- \`readiness_map\`            — helper installed next to policy-audit (transforms host output)
 - \`requirements.lock\`        — hash-pinned dependency lockfile
 - \`sbom.cdx.json\`            — CycloneDX 1.5 SBOM
 - \`INSTALL.md\` \`SECURITY.md\` \`SUPPORT.md\` — install, security, and support docs

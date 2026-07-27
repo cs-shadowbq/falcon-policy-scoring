@@ -124,8 +124,10 @@ def build_parser() -> argparse.ArgumentParser:
     # Global arguments - Connection Configuration
     parser.add_argument(
         "-c", "--config",
-        default="config/config.yaml",
-        help="Path to configuration YAML file (default: config/config.yaml)"
+        default=None,
+        help="Path to configuration YAML file. If omitted, searches ./config.yaml, "
+             "config/config.yaml, then /etc/falcon-policy-audit/config.yaml "
+             "(default: config/config.yaml)"
     )
     parser.add_argument(
         "--client-id",
@@ -363,13 +365,36 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_config_path(explicit):
+    """Resolve the config file path.
+
+    If the user passed -c/--config, honor it verbatim. Otherwise search a small
+    candidate list so both a workspace layout (config.yaml in the CWD) and a
+    SYSTEM/service install (/etc/falcon-policy-audit) work without requiring
+    '-c'. Falls back to 'config/config.yaml' (the historical default) when
+    nothing is found, preserving prior behavior and error messages.
+    """
+    if explicit is not None:
+        return explicit
+    for candidate in (
+        "config.yaml",
+        "config/config.yaml",
+        "/etc/falcon-policy-audit/config.yaml",
+    ):
+        if os.path.isfile(candidate):
+            return candidate
+    return "config/config.yaml"
+
+
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments.
 
     Returns:
         Parsed arguments namespace
     """
-    return build_parser().parse_args()
+    args = build_parser().parse_args()
+    args.config = _resolve_config_path(args.config)
+    return args
 
 
 def load_configuration(args, ctx) -> dict:

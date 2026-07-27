@@ -120,6 +120,7 @@ SVC_USER="$(mval user)"
 SVC_USER_NOTE="$(mnote user)"
 CLI_PATH="$(mval cli)"
 MAN_PATH="$(mval man)"
+RM_PATH="$(mval readiness-map)"
 PKG_PATH="$(mval package)"
 CONFIG_FILE="$(mval config)"
 GRADING_DIRS="$(mall grading-dir)"
@@ -130,6 +131,7 @@ echo "Will remove:"
 [ -n "$SVC_UNIT" ] && echo "  systemd unit : $SVC_UNIT"
 [ -n "$CLI_PATH" ]  && echo "  CLI wrapper  : $CLI_PATH"
 [ -n "$MAN_PATH" ]  && echo "  man page     : $MAN_PATH"
+[ -n "$RM_PATH" ]   && echo "  readiness_map: $RM_PATH"
 echo "  Python package (pip uninstall or $PKG_PATH)"
 if [ "$SVC_USER_NOTE" = "created" ] && [ -n "$SVC_USER" ]; then
     echo "  service user : $SVC_USER"
@@ -200,6 +202,13 @@ if [ -n "$MAN_PATH" ] && [ -f "$MAN_PATH" ]; then
     rm -f "$MAN_PATH" 2>/dev/null \
         && { echo "Removed man page: $MAN_PATH"; logline "removed man page $MAN_PATH"; } \
         || logline "man page $MAN_PATH not removed"
+fi
+
+# 3c. Remove readiness_map helper (installed by hand, not by pip).
+if [ -n "$RM_PATH" ] && [ -f "$RM_PATH" ]; then
+    rm -f "$RM_PATH" 2>/dev/null \
+        && { echo "Removed readiness_map: $RM_PATH"; logline "removed readiness_map $RM_PATH"; } \
+        || logline "readiness_map $RM_PATH not removed"
 fi
 
 # 4. Remove the service account only if this deployment created it.

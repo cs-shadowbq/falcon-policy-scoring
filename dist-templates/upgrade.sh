@@ -189,6 +189,7 @@ SVC_USER="$(mval user)"
 INSTALL_TYPE="$(mvalue type)"
 CLI_PATH="$(mval cli)"
 MAN_PATH="$(mval man)"
+RM_PATH="$(mval readiness-map)"
 PKG_PATH="$(mval package)"
 MANIFEST_VER="$(mvalue version)"
 
@@ -242,6 +243,7 @@ print_install_state() {
     fi
     [ -n "$CLI_PATH" ] && echo "  CLI               : $CLI_PATH"
     [ -n "$MAN_PATH" ] && echo "  man page          : $MAN_PATH"
+    [ -n "$RM_PATH" ] && echo "  readiness_map     : $RM_PATH"
     [ -n "$PKG_PATH" ] && echo "  package           : $PKG_PATH"
     if [ -n "$SVC_UNIT" ]; then
         local act="unknown" ena="unknown"
@@ -353,6 +355,29 @@ if [ -f "$SCRIPT_DIR/policy-audit.1" ]; then
             if cp "$SCRIPT_DIR/policy-audit.1" "$MAN_TARGET" 2>/dev/null; then
                 echo "Refreshed man page: $MAN_TARGET"
                 logline "refreshed man page $MAN_TARGET"
+            fi
+        fi
+    fi
+fi
+echo ""
+
+# --- 3b. readiness_map helper (best effort, idempotent) ---------------------
+# Refresh the recorded readiness_map; if the manifest has no record (older
+# install predating it), place it next to the CLI so upgrades add it.
+if [ -f "$SCRIPT_DIR/readiness_map" ]; then
+    RM_TARGET="$(mval readiness-map)"
+    if [ -z "$RM_TARGET" ] && [ -n "$CLI_PATH" ]; then
+        RM_TARGET="$(dirname "$CLI_PATH")/readiness_map"
+    fi
+    if [ -n "$RM_TARGET" ]; then
+        if [ "$DRY_RUN" = "yes" ]; then
+            echo "[dry-run] would refresh readiness_map at $RM_TARGET"
+        else
+            if cp "$SCRIPT_DIR/readiness_map" "$RM_TARGET" 2>/dev/null; then
+                chmod 755 "$RM_TARGET" 2>/dev/null || true
+                mset readiness-map "$RM_TARGET" -
+                echo "Refreshed readiness_map: $RM_TARGET"
+                logline "refreshed readiness_map $RM_TARGET"
             fi
         fi
     fi

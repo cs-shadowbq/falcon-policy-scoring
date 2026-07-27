@@ -384,6 +384,29 @@ INSTALLED_VER="$($PYTHON -m pip show falcon-policy-scoring 2>/dev/null | awk -F'
 [ -n "$INSTALLED_VER" ] && mset version - "$INSTALLED_VER"
 logline "package installed (mode=$INSTALL_MODE version=${INSTALLED_VER:-unknown} cli=${CLI_PATH:-unknown})"
 
+# --- Install the readiness_map helper --------------------------------------
+# readiness_map is a standalone stdlib script (NOT a pip console script), so it
+# must be placed next to policy-audit by hand. Drop it in the same bin dir as
+# the CLI when known; otherwise the conventional bin dir for root vs. user.
+if [ -f "$SCRIPT_DIR/readiness_map" ]; then
+    if [ -n "$CLI_PATH" ]; then
+        RM_BIN="$(dirname "$CLI_PATH")"
+    elif [ "$IS_ROOT" = "yes" ]; then
+        RM_BIN="/usr/local/bin"
+    else
+        RM_BIN="$HOME/.local/bin"
+    fi
+    if mkdir -p "$RM_BIN" 2>/dev/null && cp "$SCRIPT_DIR/readiness_map" "$RM_BIN/readiness_map" 2>/dev/null; then
+        chmod 755 "$RM_BIN/readiness_map" 2>/dev/null || true
+        mset readiness-map "$RM_BIN/readiness_map" -
+        logline "readiness_map installed at $RM_BIN/readiness_map"
+        echo "Installed helper: $RM_BIN/readiness_map"
+    else
+        echo "WARNING: could not install readiness_map into $RM_BIN; run it from the bundle: $SCRIPT_DIR/readiness_map"
+        logline "WARNING: readiness_map install to $RM_BIN failed"
+    fi
+fi
+
 # --- Install the man page (best effort) ------------------------------------
 # Install policy-audit.1 into the first writable man1 directory so
 # `man policy-audit` works offline. Skips gracefully if none is writable.
