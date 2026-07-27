@@ -272,21 +272,57 @@ record_pip_layout() {
         | awk -F': ' '/^Location:/ {print $2}')
     [ -n "$loc" ] && mset package "$loc/falcon_policy_scoring" "pip"
 
-    # Resolve the console-script path. `command -v` only works if the script dir
-    # is on PATH — frequently NOT the case for /usr/local/bin under a bare root
-    # shell. Fall back to the interpreter's script directory.
-    CLI_PATH=$(command -v policy-audit 2>/dev/null || true)
-    if [ -z "$CLI_PATH" ]; then
-        local bindir
-        bindir=$($PYTHON -c 'import sysconfig; print(sysconfig.get_path("scripts") or "")' 2>/dev/null || true)
-        if [ -n "$bindir" ] && [ -x "$bindir/policy-audit" ]; then
-            CLI_PATH="$bindir/policy-audit"
-            echo "NOTE: policy-audit installed to $bindir (not on PATH)."
-            echo "      Add it to PATH:  export PATH=\"$bindir:\$PATH\""
+    # Resolve the console-script path. This is deliberately robust because the
+    # script dir is frequently NOT on PATH (e.g. root's PATH lacks /usr/local/bin
+    # on RHEL, where pip-as-root installs console scripts), and sysconfig's
+    # 'scripts' path (/usr/bin) does not match where pip actually wrote it
+    # (/usr/local/bin). Try, in order:
+    #   1. `pip show -f` RECORD — authoritative: the exact path pip installed.
+    #   2. command -v — if it happens to be on PATH.
+    #   3. a list of well-known bindirs.
+    CLI_PATH=""
+    if [ -n "$loc" ]; then
+        # RECORD lists files relative to Location; find the policy-audit script.
+        local rel
+        rel=$($PYTHON -m pip show -f falcon-policy-scoring 2>/dev/null \
+            | awk '/^ / {sub(/^ +/,""); print}' \
+            | grep -E '(^|/)bin/policy-audit$' | head -1)
+        if [ -n "$rel" ]; then
+            # Normalize 'Location/rel' (rel is often '../../../bin/policy-audit').
+            CLI_PATH=$($PYTHON -c "import os,sys; print(os.path.realpath(os.path.join(sys.argv[1], sys.argv[2])))" "$loc" "$rel" 2>/dev/null || true)
+            [ -x "$CLI_PATH" ] || CLI_PATH=""
         fi
     fi
+    [ -z "$CLI_PATH" ] && CLI_PATH=$(command -v policy-audit 2>/dev/null || true)
+    if [ -z "$CLI_PATH" ]; then
+        local d
+        for d in \
+            "$($PYTHON -c 'import sysconfig; print(sysconfig.get_path("scripts") or "")' 2>/dev/null)" \
+            /usr/local/bin /usr/bin "$HOME/.local/bin"; do
+            if [ -n "$d" ] && [ -x "$d/policy-audit" ]; then
+                CLI_PATH="$d/policy-audit"
+                break
+            fi
+        done
+    fi
+
     if [ -n "$CLI_PATH" ]; then
         mset cli "$CLI_PATH" "pip"
+        # Warn if the resolved script dir is not on PATH (the "command not found"
+        # trap). Common as root on RHEL, where /usr/local/bin is often absent.
+        case ":$PATH:" in
+            *":$(dirname "$CLI_PATH"):"*) : ;;
+            *)
+                echo "NOTE: policy-audit installed to $(dirname "$CLI_PATH") which is NOT on your PATH."
+                echo "      Add it:  export PATH=\"$(dirname "$CLI_PATH"):\$PATH\""
+                echo "      (or run without PATH:  $PYTHON -m falcon_policy_scoring --help)"
+                logline "console script at $CLI_PATH is not on PATH"
+                ;;
+        esac
+    else
+        echo "WARNING: could not locate the policy-audit console script."
+        echo "         Run the tool as:  $PYTHON -m falcon_policy_scoring --help"
+        logline "WARNING: console script path not resolved"
     fi
     # Explicit success: last function statement, so a falsy result would abort
     # the installer under `set -e`.
@@ -299,7 +335,7 @@ if $PYTHON -m pip --version &>/dev/null; then
     pip_install
     record_pip_layout
     echo ""
-    echo "Done! Run: policy-audit --help"
+    echo "Done! Run: ${CLI_PATH:-policy-audit} --help"
 elif $PYTHON -m ensurepip --help &>/dev/null; then
     INSTALL_MODE="ensurepip"
     echo "Bootstrapping pip via ensurepip..."
@@ -307,7 +343,7 @@ elif $PYTHON -m ensurepip --help &>/dev/null; then
     pip_install
     record_pip_layout
     echo ""
-    echo "Done! Run: policy-audit --help"
+    echo "Done! Run: ${CLI_PATH:-policy-audit} --help"
 else
     INSTALL_MODE="manual"
     echo "pip not available. Installing via manual extraction..."
