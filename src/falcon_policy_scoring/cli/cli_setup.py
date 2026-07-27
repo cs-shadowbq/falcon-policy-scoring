@@ -91,6 +91,96 @@ def validate_policy_types(value: str) -> str:
     return value
 
 
+# Sentinel used so global options attach to both the top-level parser and every
+# subparser WITHOUT their unspecified copies writing (and clobbering) the
+# namespace. Real defaults are applied once, post-parse, by
+# :func:`_apply_global_defaults`.
+GLOBAL_DEFAULTS = {
+    'config': None,
+    'client_id': None,
+    'client_secret': None,
+    'base_url': None,
+    'output_format': 'text',
+    'output_file': None,
+    'verbose': False,
+}
+
+
+def _build_global_parser() -> argparse.ArgumentParser:
+    """Build the shared parent parser holding all global options.
+
+    Every global uses ``default=argparse.SUPPRESS`` so that an unspecified copy
+    (there is one per subparser plus the top-level parser) does not write into
+    the parsed namespace. Without this, argparse's "last parser wins" behavior
+    would let a subparser's default silently overwrite a value the user passed
+    *before* the subcommand. Real defaults are applied post-parse instead.
+
+    Returns:
+        A parser configured with ``add_help=False`` for use as a ``parents``
+        entry on both the main parser and each subparser.
+    """
+    global_parser = argparse.ArgumentParser(add_help=False)
+
+    # Connection Configuration
+    global_parser.add_argument(
+        "-c", "--config",
+        default=argparse.SUPPRESS,
+        help="Path to configuration YAML file. If omitted, searches ./config.yaml, "
+             "config/config.yaml, then /etc/falcon-policy-audit/config.yaml "
+             "(default: config/config.yaml)"
+    )
+    global_parser.add_argument(
+        "--client-id",
+        default=argparse.SUPPRESS,
+        help="CrowdStrike API Client ID (overrides config file)"
+    )
+    global_parser.add_argument(
+        "--client-secret",
+        default=argparse.SUPPRESS,
+        help="CrowdStrike API Client Secret (overrides config file)"
+    )
+    global_parser.add_argument(
+        "--base-url",
+        default=argparse.SUPPRESS,
+        help="CrowdStrike API Base URL, e.g., US1, US2, EU1, GOV1, GOV2 (overrides config file)"
+    )
+
+    # Output Options
+    global_parser.add_argument(
+        "--output-format",
+        choices=['text', 'json', 'csv'],
+        default=argparse.SUPPRESS,
+        help="Output format (default: text)"
+    )
+    global_parser.add_argument(
+        "--output-file",
+        default=argparse.SUPPRESS,
+        help="Write output to file instead of stdout"
+    )
+    global_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Enable verbose output"
+    )
+
+    return global_parser
+
+
+def _apply_global_defaults(args: argparse.Namespace) -> None:
+    """Fill in defaults for any global option the user did not supply.
+
+    Because the shared global parser uses ``SUPPRESS`` defaults, an option is
+    only present on the namespace when explicitly given (in any position). This
+    applies the real default for anything still missing, giving deterministic
+    precedence regardless of whether the flag came before or after the
+    subcommand.
+    """
+    for dest, default in GLOBAL_DEFAULTS.items():
+        if not hasattr(args, dest):
+            setattr(args, dest, default)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build and return the CLI argument parser.
 
@@ -98,18 +188,27 @@ def build_parser() -> argparse.ArgumentParser:
     generation via argparse-manpage) can obtain the configured parser object
     without triggering an actual parse of ``sys.argv``.
 
+    Global options (``--config``, ``--client-id``, ``--client-secret``,
+    ``--base-url``, ``--output-format``, ``--output-file``, ``--verbose``) are
+    attached via a shared parent parser to both the top-level parser and every
+    subparser, so they may be given in any position — before OR after the
+    subcommand.
+
     Returns:
         The configured ArgumentParser.
     """
 
     policy_type_help_text = "Policy type(s) to process. Use 'all' or comma-separated list. Valid types are: all, content-update, device-control, firewall, it-automation, ods-scheduled-scan, prevention, sensor-update. Example: -t 'prevention,firewall'"
 
+    global_parser = _build_global_parser()
+
     parser = argparse.ArgumentParser(
         description="CrowdStrike Falcon Policy Audit Tool - Fetch, grade, and analyze security policies",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        parents=[global_parser]
     )
 
-    # Version argument
+    # Version argument (top-level only; action='version' is not meaningful per-subcommand)
     version_text = f'%(prog)s {__version__}\nAuthor: {__author__}\nLicense: {__license__}'
     if __maintainers__:
         maintainer_names = [m.get('name', 'unknown') if isinstance(m, dict) else str(m) for m in __maintainers__]
@@ -121,52 +220,16 @@ def build_parser() -> argparse.ArgumentParser:
         version=version_text
     )
 
-    # Global arguments - Connection Configuration
-    parser.add_argument(
-        "-c", "--config",
-        default=None,
-        help="Path to configuration YAML file. If omitted, searches ./config.yaml, "
-             "config/config.yaml, then /etc/falcon-policy-audit/config.yaml "
-             "(default: config/config.yaml)"
-    )
-    parser.add_argument(
-        "--client-id",
-        help="CrowdStrike API Client ID (overrides config file)"
-    )
-    parser.add_argument(
-        "--client-secret",
-        help="CrowdStrike API Client Secret (overrides config file)"
-    )
-    parser.add_argument(
-        "--base-url",
-        help="CrowdStrike API Base URL, e.g., US1, US2, EU1, GOV1, GOV2 (overrides config file)"
-    )
-
-    # Global arguments - Output Options
-    parser.add_argument(
-        "--output-format",
-        choices=['text', 'json', 'csv'],
-        default='text',
-        help="Output format (default: text)"
-    )
-    parser.add_argument(
-        "--output-file",
-        help="Write output to file instead of stdout"
-    )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Enable verbose output"
-    )
-
-    # Create subcommands
+    # Create subcommands. Each subparser inherits the global options via
+    # parents=[global_parser] so they work in any position.
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
 
     # Subcommand: fetch
     fetch_parser = subparsers.add_parser(
         'fetch',
         help='Fetch and grade policies and hosts from CrowdStrike API',
-        description='Retrieve fresh data from CrowdStrike API and grade all policies and hosts'
+        description='Retrieve fresh data from CrowdStrike API and grade all policies and hosts',
+        parents=[global_parser]
     )
     fetch_parser.add_argument(
         '-t', '--type',
@@ -199,7 +262,8 @@ def build_parser() -> argparse.ArgumentParser:
     policies_parser = subparsers.add_parser(
         'policies',
         help='Display policy-level grading tables',
-        description='Show graded policy tables with optional filtering and sorting'
+        description='Show graded policy tables with optional filtering and sorting',
+        parents=[global_parser]
     )
     policies_parser.add_argument(
         '-t', '--type',
@@ -242,7 +306,8 @@ def build_parser() -> argparse.ArgumentParser:
     hosts_parser = subparsers.add_parser(
         'hosts',
         help='Display host-level policy status summary',
-        description='Show host-level policy status with optional filtering and sorting'
+        description='Show host-level policy status with optional filtering and sorting',
+        parents=[global_parser]
     )
     hosts_parser.add_argument(
         '-t', '--type',
@@ -281,7 +346,8 @@ def build_parser() -> argparse.ArgumentParser:
     host_parser = subparsers.add_parser(
         'host',
         help='Display detailed policy status for a specific host',
-        description='Show detailed policy status and failure information for a single host'
+        description='Show detailed policy status and failure information for a single host',
+        parents=[global_parser]
     )
     host_parser.add_argument(
         'hostname',
@@ -313,7 +379,8 @@ def build_parser() -> argparse.ArgumentParser:
         'generate-schema',
         help='Generate JSON schema for policy-audit output',
         description='Generate JSON schema(s) for policy-audit report types. '
-                    'If no report type is specified, generates all schemas to ./output/schemas/'
+                    'If no report type is specified, generates all schemas to ./output/schemas/',
+        parents=[global_parser]
     )
     schema_parser.add_argument(
         'report_type',
@@ -330,7 +397,8 @@ def build_parser() -> argparse.ArgumentParser:
     regrade_parser = subparsers.add_parser(
         'regrade',
         help='Re-grade existing policies with updated grading criteria',
-        description='Re-grade policies already in the database using current grading criteria without fetching new data'
+        description='Re-grade policies already in the database using current grading criteria without fetching new data',
+        parents=[global_parser]
     )
     regrade_parser.add_argument(
         '-t', '--type',
@@ -344,7 +412,8 @@ def build_parser() -> argparse.ArgumentParser:
     daemon_parser = subparsers.add_parser(
         'daemon',
         help='Run in daemon mode for continuous policy auditing',
-        description='Run as a continuous service that periodically fetches, grades, and reports on policies'
+        description='Run as a continuous service that periodically fetches, grades, and reports on policies',
+        parents=[global_parser]
     )
     daemon_parser.add_argument(
         '-o', '--output-dir',
@@ -393,6 +462,7 @@ def parse_arguments() -> argparse.Namespace:
         Parsed arguments namespace
     """
     args = build_parser().parse_args()
+    _apply_global_defaults(args)
     args.config = _resolve_config_path(args.config)
     return args
 
@@ -591,12 +661,13 @@ def setup_environment(args) -> CliContext:
     Returns:
         CliContext with all environment setup complete
     """
-    # Create CLI context
+    # Create CLI context. Suppress rich console banners for any structured
+    # output format (json/csv) so stdout stays clean for machine consumption.
     console = Console()
     ctx = CliContext(
         console=console,
         verbose=args.verbose,
-        json_output_mode=(args.output_format == 'json')
+        json_output_mode=(args.output_format != 'text')
     )
 
     # Load configuration

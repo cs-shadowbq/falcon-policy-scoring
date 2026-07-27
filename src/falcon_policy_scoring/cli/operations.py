@@ -279,6 +279,10 @@ def regrade_policies(adapter, cid: str, policy_types: list, ctx):
         cid: Customer ID
         policy_types: List of policy types to regrade ('all' or specific types)
         ctx: CLI context
+
+    Returns:
+        Structured regrade summary dict with per-type results and totals:
+        ``{'policy_types': {<type>: {passed, failed, ungradable, total}}, 'summary': {...}}``
     """
     # Get the policy registry
     policy_registry = get_policy_registry()
@@ -304,7 +308,9 @@ def regrade_policies(adapter, cid: str, policy_types: list, ctx):
 
     total_passed = 0
     total_failed = 0
+    total_ungradable = 0
     total_policies = 0
+    per_type_results = {}
 
     # Regrade each policy type
     for policy_type in policies_to_regrade:
@@ -385,7 +391,15 @@ def regrade_policies(adapter, cid: str, policy_types: list, ctx):
 
             total_passed += passed
             total_failed += failed
+            total_ungradable += ungradable
             total_policies += total
+            per_type_results[policy_type] = {
+                'display_name': policy_info.display_name,
+                'passed': passed,
+                'failed': failed,
+                'ungradable': ungradable,
+                'total': total,
+            }
 
             # Show results
             if not ctx.json_output_mode:
@@ -406,6 +420,16 @@ def regrade_policies(adapter, cid: str, policy_types: list, ctx):
         ctx.console.print(f"[{Style.BOLD}][{Style.GREEN}]Re-grade Complete![/{Style.GREEN}][/{Style.BOLD}]")
         ctx.console.print(f"Total: {total_passed}/{total_policies} policies passed, {total_failed} failed\n")
 
+    return {
+        'policy_types': per_type_results,
+        'summary': {
+            'total_policies': total_policies,
+            'passed_policies': total_passed,
+            'failed_policies': total_failed,
+            'ungradable_policies': total_ungradable,
+        },
+    }
+
 
 def handle_regrade_operations(adapter, cid: str, args, ctx):
     """Handle regrade operations.
@@ -415,6 +439,9 @@ def handle_regrade_operations(adapter, cid: str, args, ctx):
         cid: Customer ID
         args: Command line arguments
         ctx: CLI context
+
+    Returns:
+        Structured regrade summary dict (see :func:`regrade_policies`).
     """
     # Parse policy types - handle 'all' or comma-separated list
     if args.policy_type == 'all':
@@ -424,4 +451,4 @@ def handle_regrade_operations(adapter, cid: str, args, ctx):
         policy_types = [t.strip() for t in args.policy_type.split(',')]
 
     # Regrade policies
-    regrade_policies(adapter, cid, policy_types, ctx)
+    return regrade_policies(adapter, cid, policy_types, ctx)

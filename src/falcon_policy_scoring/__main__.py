@@ -112,11 +112,13 @@ def main():
         return
 
     if args.command == 'regrade':
-        # Create CLI context
+        # Create CLI context. Suppress rich console output for any structured
+        # format (json/csv) so stdout stays clean; the structured payload is
+        # emitted by output_regrade_summary instead.
         ctx = CliContext(
             console=Console(),
             verbose=args.verbose,
-            json_output_mode=(args.output_format == 'json')
+            json_output_mode=(args.output_format != 'text')
         )
         # Run regrade operation
         _run_regrade_mode(args, ctx)
@@ -209,8 +211,14 @@ def _run_regrade_mode(args, ctx):
         # Setup environment (config, database - no API needed)
         ctx = setup_environment(args)
 
-        # Handle regrade operations
-        handle_regrade_operations(ctx.adapter, ctx.cid, args, ctx)
+        # Handle regrade operations (returns a structured summary)
+        summary = handle_regrade_operations(ctx.adapter, ctx.cid, args, ctx)
+
+        # In text mode regrade_policies already printed rich output; emit
+        # structured formats (json/csv) here so --output-format is honored.
+        if args.output_format != 'text':
+            from falcon_policy_scoring.cli.output_strategies import output_regrade_summary
+            output_regrade_summary(summary, args, ctx)
 
     except ConfigurationError as e:
         _handle_error(e, "Configuration Error", ctx)

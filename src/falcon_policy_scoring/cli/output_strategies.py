@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any
 import json
 import csv
+import sys
 
 
 class OutputStrategy(ABC):
@@ -296,8 +297,8 @@ class JsonOutputStrategy(OutputStrategy):
         if output_file:
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(json_str)
-            if context.verbose:
-                context.console.print(f"[green]JSON output written to: {output_file}[/green]")
+            # Report destination to stderr so stdout stays clean for piping.
+            print(f"JSON output written to: {output_file}", file=sys.stderr)
         else:
             print(json_str)
 
@@ -333,6 +334,15 @@ class CsvOutputStrategy(OutputStrategy):
         elif args.command == 'hosts':
             # Hosts summary table
             self._output_hosts_csv(adapter, cid, config, args, policy_records, base_output, context)
+        elif args.command == 'fetch':
+            # fetch is a side-effect command (writes to the DB); it has no tabular
+            # view of its own. Emitting empty CSV files here is misleading, so
+            # point the user at the commands that do produce CSV.
+            print(
+                "fetch does not produce CSV output. "
+                "Run 'policies', 'hosts', or 'host' with --output-format csv to export tables.",
+                file=sys.stderr
+            )
         else:
             # Policy tables (policies command or default)
             self._output_policies_csv(adapter, cid, args, policy_records, base_output, context)
@@ -395,9 +405,12 @@ class CsvOutputStrategy(OutputStrategy):
 
             files_created.append(csv_filename)
 
-        if context.verbose and files_created:
+        # Report destinations to stderr so stdout stays clean for piping.
+        if files_created:
             for filename in files_created:
-                context.console.print(f"[green]CSV output written to: {filename}[/green]")
+                print(f"CSV output written to: {filename}", file=sys.stderr)
+        else:
+            print("No policies matched; no CSV files written.", file=sys.stderr)
 
     def _output_hosts_csv(self, adapter, cid, config, args, policy_records, base_output, context):
         """Output hosts summary as single CSV file."""
@@ -410,8 +423,7 @@ class CsvOutputStrategy(OutputStrategy):
         filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname)
 
         if not filtered_hosts:
-            if context.verbose:
-                context.console.print("[yellow]No hosts match the specified filters[/yellow]")
+            print("No hosts match the specified filters; no CSV file written.", file=sys.stderr)
             return
 
         sorted_hosts = sort_hosts(filtered_hosts, args.sort_hosts)
@@ -460,8 +472,8 @@ class CsvOutputStrategy(OutputStrategy):
 
                 writer.writerow(row)
 
-        if context.verbose:
-            context.console.print(f"[green]CSV output written to: {csv_filename}[/green]")
+        # Report destination to stderr so stdout stays clean for piping.
+        print(f"CSV output written to: {csv_filename}", file=sys.stderr)
 
     def _output_host_details_csv(self, adapter, cid, args, policy_records, base_output, context):
         """Output host details with policy information in wide format."""
@@ -471,8 +483,7 @@ class CsvOutputStrategy(OutputStrategy):
         host_info = find_host_by_name(adapter, cid, args.hostname)
 
         if not host_info:
-            if context.verbose:
-                context.console.print(f"[yellow]Host '{args.hostname}' not found in database[/yellow]")
+            print(f"Host '{args.hostname}' not found in database; no CSV file written.", file=sys.stderr)
             return
 
         device_data = host_info['device_data']
@@ -550,8 +561,8 @@ class CsvOutputStrategy(OutputStrategy):
 
             writer.writerow(row)
 
-        if context.verbose:
-            context.console.print(f"[green]CSV output written to: {csv_filename}[/green]")
+        # Report destination to stderr so stdout stays clean for piping.
+        print(f"CSV output written to: {csv_filename}", file=sys.stderr)
 
 
 def get_output_strategy(format_type: str) -> OutputStrategy:
@@ -569,3 +580,70 @@ def get_output_strategy(format_type: str) -> OutputStrategy:
         'csv': CsvOutputStrategy()
     }
     return strategies.get(format_type, TextOutputStrategy())
+
+
+def output_regrade_summary(summary: Dict[str, Any], args, context) -> None:
+    """Emit a regrade summary in the requested output format.
+
+    The regrade summary is produced by :func:`operations.regrade_policies` and is
+    self-contained (per-type results + totals), so it is serialized directly
+    rather than routed through the DB-backed OutputStrategy classes. In text mode
+    this is a no-op because ``regrade_policies`` already prints rich output; JSON
+    and CSV are emitted here.
+
+    Args:
+        summary: Regrade summary dict with 'policy_types' and 'summary' keys.
+        args: Parsed CLI arguments (uses ``output_format`` and ``output_file``).
+        context: CLI context.
+    """
+    output_format = getattr(args, 'output_format', 'text')
+
+    if output_format == 'json':
+        from falcon_policy_scoring.utils.datetime_utils import get_utc_iso_timestamp
+        from falcon_policy_scoring import __version__ as app_version
+
+        payload = {
+            "metadata": {
+                "version": app_version,
+                "timestamp": get_utc_iso_timestamp(),
+                "report_type": "regrade",
+            },
+            "summary": summary.get('summary', {}),
+            "policy_types": summary.get('policy_types', {}),
+        }
+        json_str = json.dumps(payload, indent=2)
+        output_file = getattr(args, 'output_file', None)
+        if output_file:
+            with open(output_file, 'w', encoding='utf-8') as f:
+                f.write(json_str)
+            # Report destination to stderr so stdout stays clean for piping.
+            print(f"JSON output written to: {output_file}", file=sys.stderr)
+        else:
+            print(json_str)
+
+    elif output_format == 'csv':
+        base_output = getattr(args, 'output_file', None) or 'output'
+        csv_filename = f"{base_output}_regrade.csv" if base_output != 'output' else "regrade.csv"
+
+        with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['Policy Type', 'Passed', 'Failed', 'Ungradable', 'Total'])
+            for policy_type, result in summary.get('policy_types', {}).items():
+                writer.writerow([
+                    result.get('display_name', policy_type),
+                    result.get('passed', 0),
+                    result.get('failed', 0),
+                    result.get('ungradable', 0),
+                    result.get('total', 0),
+                ])
+            totals = summary.get('summary', {})
+            writer.writerow([
+                'TOTAL',
+                totals.get('passed_policies', 0),
+                totals.get('failed_policies', 0),
+                totals.get('ungradable_policies', 0),
+                totals.get('total_policies', 0),
+            ])
+
+        # Report destination to stderr so stdout stays clean for piping.
+        print(f"CSV output written to: {csv_filename}", file=sys.stderr)

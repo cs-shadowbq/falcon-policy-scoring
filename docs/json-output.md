@@ -28,7 +28,18 @@ The `policy-audit` tool supports structured JSON output for programmatic consump
 
 # Specific host output
 ./bin/policy-audit host WIN-SERVER-01 --output-format json
+
+# Re-grade cached policies and emit a summary (per-type + totals)
+./bin/policy-audit regrade --output-format json
+./bin/policy-audit regrade --output-format csv --output-file run
 ```
+
+> **Flag position:** `--output-format`, `--output-file`, `--verbose`, and the
+> connection flags are global and work in **any position** — before *or* after
+> the subcommand. `policy-audit --output-format json hosts` and
+> `policy-audit hosts --output-format json` are equivalent. When
+> `--output-file` is used, the "written to" notice is printed to **stderr** so
+> stdout stays clean for piping.
 
 ### Generate JSON Schema
 

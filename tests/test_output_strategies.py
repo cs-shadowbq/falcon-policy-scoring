@@ -837,3 +837,84 @@ class TestOutputStrategyDataConsistency:
             assert rows[3][4] == '10'
             assert rows[3][5] == '5'
             assert rows[3][6] == '5'
+
+
+class TestRegradeSummaryOutput:
+    """Tests for output_regrade_summary (json/csv for the regrade command).
+
+    Regression: previously `regrade --output-format json` silently emitted
+    nothing. These lock in structured output plus stderr-only file messaging.
+    """
+
+    @pytest.fixture
+    def summary(self):
+        return {
+            'policy_types': {
+                'prevention': {'display_name': 'Prevention', 'passed': 2, 'failed': 1, 'ungradable': 0, 'total': 3},
+                'firewall': {'display_name': 'Firewall', 'passed': 1, 'failed': 0, 'ungradable': 1, 'total': 2},
+            },
+            'summary': {
+                'total_policies': 5,
+                'passed_policies': 3,
+                'failed_policies': 1,
+                'ungradable_policies': 1,
+            },
+        }
+
+    def test_json_to_stdout(self, summary, mock_context, capsys):
+        from falcon_policy_scoring.cli.output_strategies import output_regrade_summary
+        from argparse import Namespace
+        args = Namespace(output_format='json', output_file=None)
+        output_regrade_summary(summary, args, mock_context)
+
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload['metadata']['report_type'] == 'regrade'
+        assert payload['summary']['passed_policies'] == 3
+        assert payload['policy_types']['prevention']['failed'] == 1
+
+    def test_json_to_file_reports_on_stderr(self, summary, mock_context, capsys, tmp_path):
+        from falcon_policy_scoring.cli.output_strategies import output_regrade_summary
+        from argparse import Namespace
+        out = tmp_path / "regrade.json"
+        args = Namespace(output_format='json', output_file=str(out))
+        output_regrade_summary(summary, args, mock_context)
+
+        captured = capsys.readouterr()
+        # stdout stays clean; destination note goes to stderr
+        assert captured.out.strip() == ''
+        assert 'written to' in captured.err
+        payload = json.loads(out.read_text())
+        assert payload['summary']['total_policies'] == 5
+
+    def test_csv_writes_rows_and_total(self, summary, mock_context, capsys, tmp_path):
+        from falcon_policy_scoring.cli.output_strategies import output_regrade_summary
+        from argparse import Namespace
+        base = tmp_path / "run"
+        args = Namespace(output_format='csv', output_file=str(base))
+        output_regrade_summary(summary, args, mock_context)
+
+        csv_file = tmp_path / "run_regrade.csv"
+        assert csv_file.exists()
+        with open(csv_file, newline='', encoding='utf-8') as f:
+            rows = list(csv.reader(f))
+        assert rows[0] == ['Policy Type', 'Passed', 'Failed', 'Ungradable', 'Total']
+        # last row is the TOTAL line
+        assert rows[-1][0] == 'TOTAL'
+        assert rows[-1][1] == '3'
+        assert rows[-1][4] == '5'
+        # destination reported on stderr, not stdout
+        captured = capsys.readouterr()
+        assert captured.out.strip() == ''
+        assert 'written to' in captured.err
+
+    def test_text_is_noop(self, summary, mock_context, capsys):
+        # text mode already printed rich output in regrade_policies; the
+        # serializer must not emit anything extra.
+        from falcon_policy_scoring.cli.output_strategies import output_regrade_summary
+        from argparse import Namespace
+        args = Namespace(output_format='text', output_file=None)
+        output_regrade_summary(summary, args, mock_context)
+        captured = capsys.readouterr()
+        assert captured.out == ''
+        assert captured.err == ''

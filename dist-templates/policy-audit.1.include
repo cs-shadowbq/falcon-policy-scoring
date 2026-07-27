@@ -52,6 +52,12 @@ Show policy-level results from the most recent cached data:
 List hosts with any failing policy:
 .B policy-audit hosts \-\-status any-failed
 .TP
+Export host results as JSON (the global flag works before or after the subcommand):
+.B policy-audit hosts \-\-output-format json \-\-output-file hosts.json
+.TP
+Re-grade cached policies and emit a summary as CSV:
+.B policy-audit regrade \-\-output-format csv \-\-output-file run
+.TP
 Run as a continuous-monitoring daemon with a specific config:
 .B policy-audit daemon \-c config.yaml \-\-output-dir ./output
 

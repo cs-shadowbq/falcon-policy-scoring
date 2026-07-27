@@ -120,6 +120,35 @@ policy-audit policies --details
 policy-audit hosts --status any-failed
 ```
 
+### Output Formats
+
+All commands accept the global `--output-format {text,json,csv}` and
+`--output-file` options. These (along with `--verbose`, `--config`, and the
+connection flags) work in **any position** — before *or* after the subcommand:
+
+```bash
+# Both of these are equivalent:
+policy-audit --output-format json hosts
+policy-audit hosts --output-format json
+```
+
+Supported formats per command:
+
+| Command           | text | json | csv | Notes                                                        |
+|-------------------|:----:|:----:|:---:|--------------------------------------------------------------|
+| `policies`        |  ✅  |  ✅  | ✅  | CSV writes one file per policy type                          |
+| `hosts`           |  ✅  |  ✅  | ✅  | CSV writes a single hosts summary file                       |
+| `host`            |  ✅  |  ✅  | ✅  | CSV writes a wide host-details file                          |
+| `regrade`         |  ✅  |  ✅  | ✅  | json/csv emit a re-grade summary (per-type + totals)         |
+| `fetch`           |  ✅  |  ✅  | ➖  | side-effect command; CSV is not applicable                   |
+| `generate-schema` |  —   |  —   |  —  | always writes JSON schema files                              |
+| `daemon`          |  —   |  —   |  —  | writes its own timestamped JSON reports                      |
+
+With `--output-file`, machine-readable output (json/csv) goes to the file and
+the "written to" notice is printed to **stderr**, keeping stdout clean for
+piping. Without it, json prints to stdout and csv writes to the working
+directory.
+
 ### Daemon Mode (Continuous Monitoring)
 
 **Docker Compose:**
@@ -188,6 +217,7 @@ kubectl logs -n endpoint-readiness-audit -l app=falcon-policy-audit -f
 | **[Interactive Mode Guide](docs/policy-audit-interactive-mode.md)** | CLI commands, filtering, sorting, examples |
 | **[Daemon Mode Guide](docs/policy-audit-daemon-mode.md)** | Continuous monitoring, scheduling, deployment |
 | **[JSON Output Format](docs/json-output.md)** | Output schema and file structure |
+| **[Readiness Map](docs/readiness-map.md)** | Transform a hosts report into readiness_map.json  |
 | **[Kubernetes Deployment](k8s/README.md)** | K8s manifests, RBAC, resource limits |
 | **[STIG Hardening Guide](STIG_HARDENING.md)** | Container security and compliance |
 
