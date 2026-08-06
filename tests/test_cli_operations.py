@@ -147,10 +147,12 @@ class TestFetchHosts:
     def test_fetch_hosts_with_host_groups(self, mock_fetch_simple, mock_host_group_class,
                                           mock_hosts_class, mock_falcon, mock_adapter,
                                           mock_config, mock_ctx):
-        """Test host fetching with host group filtering."""
-        # Setup mocks
+        """Test host fetching with host group filtering (server-side by group ID)."""
+        # Setup mocks: names are resolved to IDs (cheap lookup), NOT member AIDs
         mock_host_group_instance = Mock()
-        mock_host_group_instance.get_device_ids_from_groups.return_value = ['host-1', 'host-2']
+        mock_host_group_instance.resolve_group_names_to_ids.return_value = {
+            'group1': 'gid-1', 'group2': 'gid-2'
+        }
         mock_host_group_class.return_value = mock_host_group_instance
 
         mock_hosts_instance = Mock()
@@ -176,30 +178,41 @@ class TestFetchHosts:
             host_group_names=['group1', 'group2']
         )
 
-        # Verify
+        # Verify: names resolved to IDs, and group IDs passed into Hosts server-side
         assert result['fetched'] == 2
-        mock_host_group_instance.get_device_ids_from_groups.assert_called_once_with(['group1', 'group2'])
+        mock_host_group_instance.resolve_group_names_to_ids.assert_called_once_with(['group1', 'group2'])
+        # The inefficient member-fetch path must NOT be used
+        mock_host_group_instance.get_device_ids_from_groups.assert_not_called()
+        _, hosts_kwargs = mock_hosts_class.call_args
+        assert sorted(hosts_kwargs['group_ids']) == ['gid-1', 'gid-2']
 
     @patch('falcon_policy_scoring.cli.operations.Hosts')
     @patch('falcon_policy_scoring.cli.operations.HostGroup')
-    def test_fetch_hosts_empty_host_group(self, mock_host_group_class, mock_hosts_class,
-                                          mock_falcon, mock_adapter, mock_config, mock_ctx):
-        """Test handling of empty host groups."""
-        # Setup mocks
-        mock_host_group_instance = Mock()
-        mock_host_group_instance.get_device_ids_from_groups.return_value = []
-        mock_host_group_class.return_value = mock_host_group_instance
+    @patch('falcon_policy_scoring.cli.data_fetcher.fetch_hosts_simple')
+    def test_fetch_hosts_with_group_ids_and_tags(self, mock_fetch_simple, mock_host_group_class,
+                                                 mock_hosts_class, mock_falcon, mock_adapter,
+                                                 mock_config, mock_ctx):
+        """Test host fetching with explicit group IDs and tags (no name lookup)."""
+        mock_hosts_instance = Mock()
+        mock_hosts_instance.get_devices.return_value = {
+            'cid': 'test-cid', 'base_url': 'https://test.com',
+            'hosts': ['host-1'], 'total': 1, 'epoch': 1234567890
+        }
+        mock_hosts_class.return_value = mock_hosts_instance
+        mock_fetch_simple.return_value = {'fetched': 1, 'total_hosts': 1, 'errors': 0}
 
-        # Execute
         result = fetch_and_store_hosts(
             mock_falcon, mock_adapter, 'test-cid',
             ['Workstation'], mock_config, mock_ctx,
-            host_group_names=['empty-group']
+            host_group_ids=['gid-9'], tags=['FalconGroupingTags/prod']
         )
 
-        # Verify - should return zeros without fetching
-        assert result['fetched'] == 0
-        assert result['total_hosts'] == 0
+        assert result['fetched'] == 1
+        # No name resolution needed when only IDs are supplied
+        mock_host_group_class.assert_not_called()
+        _, hosts_kwargs = mock_hosts_class.call_args
+        assert hosts_kwargs['group_ids'] == ['gid-9']
+        assert hosts_kwargs['tags'] == ['FalconGroupingTags/prod']
 
     @patch('falcon_policy_scoring.cli.operations.Hosts')
     @patch('falcon_policy_scoring.cli.data_fetcher.fetch_hosts_with_progress')

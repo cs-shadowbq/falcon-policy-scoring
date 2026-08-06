@@ -39,7 +39,7 @@ class TextOutputStrategy(OutputStrategy):
             build_host_table, print_host_stats, format_status_cell
         )
         from .data_fetcher import collect_host_data, calculate_host_stats, find_host_by_name
-        from .helpers import fetch_all_graded_policies, determine_policy_types_to_display, get_policy_status
+        from .helpers import fetch_all_graded_policies, determine_policy_types_to_display, get_policy_status, resolve_display_host_filters
         from falcon_policy_scoring.utils.constants import Style, POLICY_TYPE_REGISTRY
         from falcon_policy_scoring.utils.cache_helpers import (
             calculate_cache_age, get_hosts_ttl, is_cache_expired, format_cache_display_with_ttl
@@ -57,10 +57,15 @@ class TextOutputStrategy(OutputStrategy):
         # Handle host-specific views
         wide = getattr(args, 'wide', True)
 
+        # Resolve client-side host group / tag display filters once (applied over
+        # cached rows; does not reduce fetch cost).
+        host_group_id_filter, host_tag_filter = resolve_display_host_filters(args, context)
+
         if args.show_hosts and args.hostname and getattr(args, 'details', False):
             # Show host summary table for specific host, then details
             host_data = collect_host_data(adapter, cid, policy_records, config)
-            filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname)
+            filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname,
+                                          host_group_id_filter, host_tag_filter)
 
             if filtered_hosts:
                 sorted_hosts = sort_hosts(filtered_hosts, args.sort_hosts)
@@ -184,7 +189,8 @@ class TextOutputStrategy(OutputStrategy):
         elif args.show_hosts and args.hostname:
             # Just show the host summary table for the specific host
             host_data = collect_host_data(adapter, cid, policy_records, config)
-            filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname)
+            filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname,
+                                          host_group_id_filter, host_tag_filter)
 
             if filtered_hosts:
                 sorted_hosts = sort_hosts(filtered_hosts, args.sort_hosts)
@@ -238,7 +244,8 @@ class TextOutputStrategy(OutputStrategy):
             # Show host summary if requested (without hostname filter)
             if args.show_hosts:
                 host_data = collect_host_data(adapter, cid, policy_records, config)
-                filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname)
+                filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname,
+                                              host_group_id_filter, host_tag_filter)
 
                 if filtered_hosts:
                     sorted_hosts = sort_hosts(filtered_hosts, args.sort_hosts)
@@ -417,10 +424,14 @@ class CsvOutputStrategy(OutputStrategy):
         from .filters import filter_hosts
         from .sorters import sort_hosts
         from .data_fetcher import collect_host_data
-        from .helpers import determine_policy_types_to_display
+        from .helpers import determine_policy_types_to_display, resolve_display_host_filters
+
+        # Client-side host group / tag display filters (over cached rows)
+        host_group_id_filter, host_tag_filter = resolve_display_host_filters(args, context)
 
         host_data = collect_host_data(adapter, cid, policy_records, config)
-        filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname)
+        filtered_hosts = filter_hosts(host_data, args.platform, args.host_status, args.hostname,
+                                      host_group_id_filter, host_tag_filter)
 
         if not filtered_hosts:
             print("No hosts match the specified filters; no CSV file written.", file=sys.stderr)

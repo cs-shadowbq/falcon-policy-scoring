@@ -3,6 +3,12 @@ from typing import Dict, Optional, Tuple, List
 from falcon_policy_scoring.utils.constants import POLICY_TYPE_REGISTRY
 from falcon_policy_scoring.utils import policy_helpers as policy_helpers_utils
 from falcon_policy_scoring.utils.cache_helpers import calculate_cache_age as _calculate_cache_age
+# Pure tag/group parsing lives in utils.filters (no UI deps); re-exported here
+# for the CLI layer and backward compatibility.
+from falcon_policy_scoring.utils.filters import (
+    parse_host_group_ids,
+    parse_tags,
+)
 
 
 def format_cache_age(epoch: int) -> Tuple[int, str]:
@@ -94,3 +100,49 @@ def parse_host_groups(host_groups_arg: Optional[str]) -> Optional[List[str]]:
     groups = [group.strip() for group in host_groups_arg.split(',') if group.strip()]
 
     return groups if groups else None
+
+
+def resolve_display_host_filters(args, ctx) -> Tuple[Optional[List[str]], Optional[List[str]]]:
+    """Compute client-side host group ID and tag filters from CLI args.
+
+    Used by the display path (e.g. the ``hosts`` command) where filtering is
+    applied over cached rows. ``--host-group-ids`` and ``--tags`` need no API.
+    ``--host-groups`` names require a name-to-ID lookup; if an API client is
+    available (``ctx.falcon``) the names are resolved, otherwise a warning is
+    emitted and the names are ignored (cached records store group IDs, not names).
+
+    Args:
+        args: Parsed CLI arguments
+        ctx: CLI context (provides ``falcon`` client, if any, and console)
+
+    Returns:
+        Tuple of (group_ids, tags), each a list or None
+    """
+    from falcon_policy_scoring.falconapi.host_group import HostGroup
+    from falcon_policy_scoring.utils.constants import Style
+
+    group_ids = parse_host_group_ids(getattr(args, 'host_group_ids', None)) or []
+    tags = parse_tags(getattr(args, 'tags', None))
+
+    host_group_names = parse_host_groups(getattr(args, 'host_groups', None))
+    if host_group_names:
+        falcon = getattr(ctx, 'falcon', None)
+        if falcon is not None:
+            try:
+                name_to_id = HostGroup(falcon).resolve_group_names_to_ids(host_group_names)
+                group_ids.extend(name_to_id.values())
+            except ValueError as e:
+                ctx.console.print(
+                    f"[{Style.YELLOW}]⚠ Could not resolve host group names: {e}[/{Style.YELLOW}]"
+                )
+        else:
+            ctx.console.print(
+                f"[{Style.YELLOW}]⚠ --host-groups by name needs an API connection and is "
+                f"unavailable for cached display. Use --host-group-ids here, or apply "
+                f"--host-groups on the 'fetch' command.[/{Style.YELLOW}]"
+            )
+
+    # De-duplicate while preserving order
+    group_ids = list(dict.fromkeys(group_ids)) if group_ids else None
+
+    return group_ids, tags

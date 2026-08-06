@@ -125,6 +125,62 @@ class TestHostsInitialization:
         assert "last_seen:>'2024-01-01'" in hosts.filter
         assert '+' in hosts.filter
 
+    def test_hosts_init_with_group_ids(self):
+        """Test server-side host group filtering by group ID."""
+        mock_falcon = Mock()
+        mock_falcon.command.return_value = {
+            'status_code': 200,
+            'body': {'meta': {'pagination': {'total': 30}}}
+        }
+
+        hosts = Hosts(
+            cid='test-cid',
+            falcon=mock_falcon,
+            group_ids=['gid-1', 'gid-2']
+        )
+
+        assert "groups:['gid-1','gid-2']" in hosts.filter
+
+    def test_hosts_init_with_tags(self):
+        """Test server-side tag filtering."""
+        mock_falcon = Mock()
+        mock_falcon.command.return_value = {
+            'status_code': 200,
+            'body': {'meta': {'pagination': {'total': 12}}}
+        }
+
+        hosts = Hosts(
+            cid='test-cid',
+            falcon=mock_falcon,
+            tags=['FalconGroupingTags/prod', 'SensorGroupingTags/dmz']
+        )
+
+        assert "tags:['FalconGroupingTags/prod','SensorGroupingTags/dmz']" in hosts.filter
+
+    def test_hosts_init_group_ids_and_tags_and_product_type(self):
+        """Test group IDs, tags, and product type are AND-combined server-side."""
+        mock_falcon = Mock()
+        mock_falcon.command.return_value = {
+            'status_code': 200,
+            'body': {'meta': {'pagination': {'total': 5}}}
+        }
+
+        hosts = Hosts(
+            cid='test-cid',
+            falcon=mock_falcon,
+            product_types=['Server'],
+            group_ids=['gid-1'],
+            tags=['FalconGroupingTags/prod'],
+            filter_str="last_seen:>'2024-01-01'"
+        )
+
+        assert "groups:['gid-1']" in hosts.filter
+        assert "tags:['FalconGroupingTags/prod']" in hosts.filter
+        assert "product_type_desc:['Server']" in hosts.filter
+        assert "last_seen:>'2024-01-01'" in hosts.filter
+        # All AND-combined
+        assert hosts.filter.count('+') == 3
+
 
 class TestHostsDeviceCount:
     """Test device count queries."""

@@ -246,9 +246,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     fetch_parser.add_argument(
         '--host-groups',
-        help='Comma-separated list of host group names to filter hosts. '
-             'Only hosts that are members of these groups will be fetched. '
-             'Case-insensitive. Example: --host-groups "Production Servers,Development"'
+        help='Server-side filter (reduces hosts fetched): comma-separated list of '
+             'host group names. Names are resolved to IDs with a single lookup, '
+             'then matched natively in the FQL query. Case-insensitive. '
+             'Example: --host-groups "Production Servers,Development"'
+    )
+    fetch_parser.add_argument(
+        '--host-group-ids',
+        help='Server-side filter (reduces hosts fetched): comma-separated list of '
+             'host group IDs, used directly in the FQL query (no name lookup). '
+             'Combines with --host-groups (union). '
+             'Example: --host-group-ids "abc123...,def456..."'
+    )
+    fetch_parser.add_argument(
+        '--tags',
+        help='Server-side filter (reduces hosts fetched): comma-separated list of '
+             'Falcon tags matched natively in the FQL query. Bare values default '
+             'to the "FalconGroupingTags/" prefix; use "SensorGroupingTags/<name>" '
+             'for sensor grouping tags. Example: --tags "prod,SensorGroupingTags/dmz"'
     )
     fetch_parser.add_argument(
         '--last-seen',
@@ -319,13 +334,35 @@ def build_parser() -> argparse.ArgumentParser:
     hosts_parser.add_argument(
         '-p', '--platform',
         choices=['Windows', 'Mac', 'Linux'],
-        help='Filter by platform'
+        help='Client-side display filter (applied to cached data; does not reduce '
+             'fetch cost): filter by platform'
     )
     hosts_parser.add_argument(
         '-s', '--status',
         dest='host_status',
         choices=['all-passed', 'any-failed'],
-        help='Filter hosts by policy status'
+        help='Client-side display filter (applied to cached data; does not reduce '
+             'fetch cost): filter hosts by policy status'
+    )
+    hosts_parser.add_argument(
+        '--host-groups',
+        help='Client-side display filter (applied to cached data; does not reduce '
+             'fetch cost): comma-separated host group names. Resolved to IDs, then '
+             'matched against each cached host\'s groups. To reduce fetch cost, use '
+             'this flag on the "fetch" command instead. Case-insensitive.'
+    )
+    hosts_parser.add_argument(
+        '--host-group-ids',
+        help='Client-side display filter (applied to cached data; does not reduce '
+             'fetch cost): comma-separated host group IDs matched against each '
+             'cached host\'s groups. Combines with --host-groups (union).'
+    )
+    hosts_parser.add_argument(
+        '--tags',
+        help='Client-side display filter (applied to cached data; does not reduce '
+             'fetch cost): comma-separated Falcon tags matched against each cached '
+             'host\'s tags. Bare values default to the "FalconGroupingTags/" prefix; '
+             'use "SensorGroupingTags/<name>" for sensor grouping tags.'
     )
     hosts_parser.add_argument(
         '--sort',

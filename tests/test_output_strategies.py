@@ -184,6 +184,9 @@ class TestTextOutputStrategy:
         args.platform = None
         args.status = None
         args.sort_policies = 'platform'
+        args.host_group_ids = None
+        args.host_groups = None
+        args.tags = None
 
         # Create data
         data = {
@@ -333,6 +336,9 @@ class TestCsvOutputStrategy:
         args.platform = None
         args.host_status = None
         args.sort_hosts = 'platform'
+        args.host_group_ids = None
+        args.host_groups = None
+        args.tags = None
         args.output_file = str(tmp_path / 'test_output')
 
         # Create data
@@ -597,6 +603,9 @@ class TestOutputStrategyDataConsistency:
         args.platform = None
         args.host_status = None
         args.sort_hosts = 'platform'
+        args.host_group_ids = None
+        args.host_groups = None
+        args.tags = None
 
         data = {
             'adapter': mock_adapter,

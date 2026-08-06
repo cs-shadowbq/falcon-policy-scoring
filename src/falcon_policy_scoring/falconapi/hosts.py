@@ -10,7 +10,8 @@ class Hosts:
     Uses QueryDevicesByFilterScroll for improved pagination with large datasets.
     """
 
-    def __init__(self, cid, falcon, filter_str=None, product_types=None, device_ids=None):
+    def __init__(self, cid, falcon, filter_str=None, product_types=None, device_ids=None,
+                 group_ids=None, tags=None):
         """
         Initialize Hosts instance.
 
@@ -20,6 +21,8 @@ class Hosts:
             filter_str: Optional FQL filter string (will be combined with other filters)
             product_types: List of product types to include, or empty list/None for no filtering
             device_ids: Optional list of device IDs to filter by (for host group filtering)
+            group_ids: Optional list of host group IDs to filter by (server-side FQL groups:)
+            tags: Optional list of normalized Falcon tags to filter by (server-side FQL tags:)
         """
         self.cid = cid
         self.falcon = falcon
@@ -40,17 +43,26 @@ class Hosts:
 
         # Build the filter with or without device IDs in FQL
         device_ids_for_fql = device_ids if use_device_ids_in_fql else None
-        self.filter = self._build_filter(filter_str, product_types, device_ids_for_fql)
+        self.filter = self._build_filter(filter_str, product_types, device_ids_for_fql,
+                                         group_ids, tags)
         self.total = self.device_count()
 
-    def _build_filter(self, custom_filter=None, product_types=None, device_ids=None):
+    def _build_filter(self, custom_filter=None, product_types=None, device_ids=None,
+                      group_ids=None, tags=None):
         """
-        Build FQL filter string combining custom filter with product type and device ID filtering.
+        Build FQL filter string combining custom filter with product type, device ID,
+        host group and tag filtering.
+
+        All clauses are AND-combined server-side. Group IDs and tags are matched
+        natively by the Devices API, so filtering happens at query time and reduces
+        the number of hosts fetched.
 
         Args:
             custom_filter: Optional custom FQL filter string
             product_types: List of product types to include, or None/empty for no filtering
             device_ids: Optional list of device IDs to filter by
+            group_ids: Optional list of host group IDs to filter by (FQL groups:)
+            tags: Optional list of normalized Falcon tags to filter by (FQL tags:)
 
         Returns:
             Combined FQL filter string
@@ -63,6 +75,19 @@ class Hosts:
             # For very large lists, we rely on the scroll API to handle them
             device_id_conditions = ','.join([f"'{did}'" for did in device_ids])
             filters.append(f"device_id:[{device_id_conditions}]")
+
+        # Add host group filter if group IDs are specified (server-side, by group ID)
+        if group_ids:
+            # Build FQL: groups:['gid1','gid2'] (host is a member of ANY listed group)
+            group_conditions = ','.join([f"'{gid}'" for gid in group_ids])
+            filters.append(f"groups:[{group_conditions}]")
+
+        # Add tag filter if tags are specified (server-side, by normalized tag)
+        if tags:
+            # Build FQL: tags:['FalconGroupingTags/x','SensorGroupingTags/y']
+            # (host carries ANY listed tag)
+            tag_conditions = ','.join([f"'{tag}'" for tag in tags])
+            filters.append(f"tags:[{tag_conditions}]")
 
         # Add product type filter if product types are specified
         if product_types:

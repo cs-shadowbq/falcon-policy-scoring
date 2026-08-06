@@ -111,8 +111,10 @@ policy-audit fetch
 # Explicit ENV Mapping (alternative to auto-loading)
 # policy-audit --client-id=$CLIENT_ID --client-secret=$CLIENT_SECRET --base-url=$BASE_URL fetch
 
-# Limit fetching to specific policy types, host groups, and last-seen
+# Limit fetching to specific policy types, host groups, tags, and last-seen.
+# Host group and tag filters are applied server-side (reduces hosts fetched).
 # policy-audit fetch --host-groups "MY-GROUP" -t "it-automation" --last-seen day
+# policy-audit fetch --host-group-ids "abc123..." --tags "prod,SensorGroupingTags/dmz"
 
 # View results
 ## Simply run policy-audit hosts or policy-audit policies without any arguments, and it will automatically use the most recent cached data.

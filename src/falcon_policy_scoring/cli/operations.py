@@ -6,7 +6,7 @@ from falcon_policy_scoring.utils.policy_registry import get_policy_registry
 from falcon_policy_scoring.grading.engine import load_grading_config, POLICY_GRADERS, DEFAULT_GRADING_CONFIGS
 from falcon_policy_scoring.falconapi.policies import get_policy_table_name
 from falcon_policy_scoring.utils.constants import Style, DEFAULT_PROGRESS_THRESHOLD, DEFAULT_BATCH_SIZE
-from .helpers import parse_host_groups
+from .helpers import parse_host_groups, parse_host_group_ids, parse_tags
 
 
 def parse_product_types(product_types_arg):
@@ -27,8 +27,15 @@ def parse_product_types(product_types_arg):
     return ['Workstation', 'Domain Controller', 'Server']
 
 
-def fetch_and_store_hosts(falcon, adapter, cid: str, product_types, config, ctx, host_group_names=None, last_seen_filter=None):
+def fetch_and_store_hosts(falcon, adapter, cid: str, product_types, config, ctx,
+                          host_group_names=None, last_seen_filter=None,
+                          host_group_ids=None, tags=None):
     """Fetch and store hosts from CrowdStrike API.
+
+    Host group and tag filtering are applied server-side in the FQL query so the
+    API only returns matching hosts (reducing host count, time, and processing).
+    Host group names are resolved to IDs with a single lookup; no member AIDs are
+    fetched.
 
     Args:
         falcon: FalconPy API client
@@ -37,8 +44,10 @@ def fetch_and_store_hosts(falcon, adapter, cid: str, product_types, config, ctx,
         product_types: List of product types to filter
         config: Configuration dictionary
         ctx: CLI context
-        host_group_names: Optional list of host group names to filter by
+        host_group_names: Optional list of host group names to resolve to IDs and filter by
         last_seen_filter: Optional FQL filter for last_seen time period
+        host_group_ids: Optional list of host group IDs to filter by directly
+        tags: Optional list of normalized Falcon tags to filter by
 
     Returns:
         Results dictionary with counts
@@ -47,27 +56,34 @@ def fetch_and_store_hosts(falcon, adapter, cid: str, product_types, config, ctx,
 
     ctx.log_verbose("Fetching hosts...")
 
-    # Handle host group filtering
-    device_ids_filter = None
+    # Resolve host group names to IDs (cheap lookup, no member fetch) and union
+    # with any explicitly-supplied group IDs. These feed the server-side FQL
+    # groups: clause.
+    group_ids = list(host_group_ids) if host_group_ids else []
     if host_group_names:
-        ctx.log_verbose(f"Filtering by host groups: {', '.join(host_group_names)}")
+        ctx.log_verbose(f"Resolving host groups to IDs: {', '.join(host_group_names)}")
 
         try:
             host_group_api = HostGroup(falcon)
-            device_ids_filter = host_group_api.get_device_ids_from_groups(host_group_names)
-
-            if not device_ids_filter:
-                ctx.console.print(f"[{Style.YELLOW}]⚠ No devices found in specified host groups[/{Style.YELLOW}]")
-                return {'fetched': 0, 'total_hosts': 0, 'errors': 0}
-
-            ctx.log_verbose(f"Found {len(device_ids_filter)} unique devices in host groups")
+            name_to_id = host_group_api.resolve_group_names_to_ids(host_group_names)
+            group_ids.extend(name_to_id.values())
+            ctx.log_verbose(f"Resolved {len(name_to_id)} host group name(s) to IDs")
 
         except ValueError as e:
             ctx.console.print(f"[{Style.RED}]✗ Error resolving host groups: {e}[/{Style.RED}]")
             raise
 
-    # Get host list
-    hosts_api = Hosts(cid, falcon, filter_str=last_seen_filter, product_types=product_types, device_ids=device_ids_filter)
+    # De-duplicate group IDs while preserving order
+    group_ids = list(dict.fromkeys(group_ids)) if group_ids else None
+
+    if group_ids:
+        ctx.log_verbose(f"Filtering by {len(group_ids)} host group ID(s) server-side")
+    if tags:
+        ctx.log_verbose(f"Filtering by tags server-side: {', '.join(tags)}")
+
+    # Get host list (all filtering applied server-side in FQL)
+    hosts_api = Hosts(cid, falcon, filter_str=last_seen_filter, product_types=product_types,
+                      group_ids=group_ids, tags=tags)
     hosts_list = hosts_api.get_devices()
     adapter.put_hosts(hosts_list)
 
@@ -230,12 +246,16 @@ def handle_fetch_operations(falcon, adapter, cid: str, args, config, ctx):
 
     # Parse host groups if provided
     host_group_names = parse_host_groups(getattr(args, 'host_groups', None))
+    host_group_ids = parse_host_group_ids(getattr(args, 'host_group_ids', None))
+    tags = parse_tags(getattr(args, 'tags', None))
 
     # Get last_seen filter if provided
     last_seen_filter = getattr(args, 'last_seen', None)
 
-    # Fetch hosts (with optional host group filtering)
-    host_results = fetch_and_store_hosts(falcon, adapter, cid, product_types, config, ctx, host_group_names, last_seen_filter)
+    # Fetch hosts (with optional server-side host group and tag filtering)
+    host_results = fetch_and_store_hosts(falcon, adapter, cid, product_types, config, ctx,
+                                         host_group_names, last_seen_filter,
+                                         host_group_ids, tags)
 
     # Show summary in text mode
     if not ctx.json_output_mode:

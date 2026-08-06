@@ -145,6 +145,9 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
         hostname = device_data.get('hostname', 'Unknown')
         platform = device_data.get('platform_name', 'Unknown')
         device_policies = device_data.get('device_policies', {})
+        # Host group IDs and Falcon tags (carried through for client-side filtering)
+        groups = device_data.get('groups', []) or []
+        tags = device_data.get('tags', []) or []
 
         # Get policy status for each type
         prevention_policy_info = device_policies.get('prevention', {})
@@ -201,6 +204,8 @@ def collect_host_data(adapter, cid: str, policy_records: Dict,
             'device_id': device_id,
             'hostname': hostname,
             'platform': platform,
+            'groups': groups,
+            'tags': tags,
             'prevention_status': prevention_status,
             'sensor_update_status': sensor_update_status,
             'content_update_status': content_update_status,

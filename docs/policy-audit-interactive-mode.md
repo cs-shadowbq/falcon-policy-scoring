@@ -86,6 +86,19 @@ pip install -e .
 ./bin/policy-audit fetch --host-groups "Production Servers" --last-seen "12 hours"
 ```
 
+**Fetch by host group ID and Falcon tags (server-side filters):**
+
+```bash
+# Group names are resolved to IDs with a single lookup; group IDs are used
+# directly. Bare tags default to the "FalconGroupingTags/" prefix.
+./bin/policy-audit fetch --host-group-ids "abc123..." --tags "prod,SensorGroupingTags/dmz"
+```
+
+> Host group and tag filters on `fetch` are applied **server-side** in the FQL
+> query, so only matching hosts are retrieved — reducing host count, time, and
+> processing. The same flags on the `hosts` command are **client-side** display
+> filters over already-cached data and do not reduce fetch cost.
+
 ### Viewing Policies
 
 **Show all policies:**
@@ -258,7 +271,9 @@ policy-audit fetch [OPTIONS]
 |--------|-------------|
 | `-t, --type` | Policy type(s): `all` or comma-separated list (e.g., `prevention,firewall`)|
 | `--product-types` | Comma-separated product types (default: `Workstation,Domain Controller,Server`) |
-| `--host-groups` | Comma-separated list of host group names to filter hosts (e.g., `"Production Servers,Development"`) |
+| `--host-groups` | Server-side filter: comma-separated host group names (resolved to IDs, e.g., `"Production Servers,Development"`) |
+| `--host-group-ids` | Server-side filter: comma-separated host group IDs used directly (unions with `--host-groups`) |
+| `--tags` | Server-side filter: comma-separated Falcon tags. Bare values default to the `FalconGroupingTags/` prefix; use `SensorGroupingTags/<name>` for sensor grouping tags |
 | `--last-seen` | Filter hosts by last seen time: `hour`, `12 hours`, `day`, or `week` |
 
 #### `policies` - Display policy grading tables
@@ -279,7 +294,9 @@ policy-audit policies [OPTIONS]
 
 #### `hosts` - Display host-level status summary
 
-Shows policy status for all hosts.
+Shows policy status for all hosts. All filters below are **client-side** — they
+narrow already-cached data and do not reduce fetch cost. To reduce fetch cost,
+apply `--host-groups`/`--host-group-ids`/`--tags` on the `fetch` command instead.
 
 ```bash
 policy-audit hosts [OPTIONS]
@@ -288,8 +305,11 @@ policy-audit hosts [OPTIONS]
 | Option | Description |
 |--------|-------------|
 | `-t, --type` | Policy type(s) to include: `all` or comma-separated list (e.g., `prevention,firewall`) (default: `all`) |
-| `-p, --platform` | Filter by platform: `Windows`, `Mac`, `Linux` |
-| `-s, --status` | Filter by status: `all-passed`, `any-failed` |
+| `-p, --platform` | Client-side filter by platform: `Windows`, `Mac`, `Linux` |
+| `-s, --status` | Client-side filter by status: `all-passed`, `any-failed` |
+| `--host-groups` | Client-side filter by host group names (needs an API connection to resolve names; prefer `--host-group-ids` for cached display) |
+| `--host-group-ids` | Client-side filter by host group IDs (matched against each cached host's groups) |
+| `--tags` | Client-side filter by Falcon tags. Bare values default to the `FalconGroupingTags/` prefix; use `SensorGroupingTags/<name>` for sensor grouping tags |
 | `--sort` | Sort by: `platform` (default), `hostname`, or `status` |
 
 #### `host` - Display detailed status for specific host

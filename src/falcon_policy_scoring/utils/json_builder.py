@@ -14,7 +14,7 @@ from .policy_helpers import (
     fetch_all_graded_policies,
     calculate_policy_stats
 )
-from .filters import filter_policies
+from .filters import filter_policies, filter_hosts
 from .host_data import collect_host_data
 from .cache_helpers import calculate_cache_age, get_policy_ttl, is_cache_expired
 
@@ -230,6 +230,15 @@ def build_json_output(adapter, cid: str, config: Dict, args) -> Dict:
         # Import get_policy_status here to avoid circular dependency
         from .policy_helpers import get_policy_status
         host_data = collect_host_data(adapter, cid, policy_records, get_policy_status, config)
+
+        # Client-side host group ID / tag filters (over cached rows). Group names
+        # (--host-groups) require an API lookup and are not resolved in this
+        # cache-only JSON path; use --host-group-ids here.
+        from .filters import parse_host_group_ids, parse_tags
+        group_id_filter = parse_host_group_ids(getattr(args, 'host_group_ids', None))
+        tag_filter = parse_tags(getattr(args, 'tags', None))
+        if group_id_filter or tag_filter:
+            host_data = filter_hosts(host_data, group_ids=group_id_filter, tags=tag_filter)
 
         # Build policy ID to name lookup maps for each policy type
         policy_id_to_name = {}

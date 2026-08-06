@@ -15,6 +15,13 @@ DEFAULT_PROGRESS_THRESHOLD = 500
 # API constants
 API_COMMAND_GET_DEVICE_DETAILS = 'GetDeviceDetailsV2'
 
+# Falcon tag constants
+# Tags in the device record are prefixed by tag type. A bare tag value supplied
+# on the CLI defaults to a Falcon grouping tag; sensor grouping tags must be
+# supplied with their explicit prefix.
+DEFAULT_TAG_PREFIX = 'FalconGroupingTags/'
+VALID_TAG_PREFIXES = ('FalconGroupingTags/', 'SensorGroupingTags/')
+
 
 # Rich styles (used by CLI formatters and output strategies)
 class Style:  # pylint: disable=too-few-public-methods
